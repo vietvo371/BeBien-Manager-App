@@ -3,11 +3,29 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
+    "android": "react-native run-android --mode=devDebug --appId=vn.com.bebien.manager.dev",
+    "android:dev": "sh scripts/set-env.sh development && react-native run-android --mode=devDebug --appId=vn.com.bebien.manager.dev",
+    "android:staging": "sh scripts/set-env.sh staging && react-native run-android --mode=stagingDebug --appId=vn.com.bebien.manager.staging",
+    "android:prod": "sh scripts/set-env.sh production && react-native run-android --mode=prodRelease --appId=vn.com.bebien.manager",
+    "android:build:dev": "sh scripts/set-env.sh development && cd android && ./gradlew assembleDevRelease",
+    "android:build:staging": "sh scripts/set-env.sh staging && cd android && ./gradlew assembleStagingRelease",
+    "android:build:prod": "sh scripts/set-env.sh production && cd android && ./gradlew assembleProdRelease",
+    "android:bundle:dev": "sh scripts/set-env.sh development && cd android && ./gradlew bundleDevRelease",
+    "android:bundle:staging": "sh scripts/set-env.sh staging && cd android && ./gradlew bundleStagingRelease",
+    "android:bundle:prod": "sh scripts/set-env.sh production && cd android && ./gradlew bundleProdRelease",
+    "android:clean": "cd android && ./gradlew clean",
     "ios": "react-native run-ios",
+    "ios:dev": "sh scripts/set-env.sh development && react-native run-ios --simulator='iPhone 16 Plus'",
+    "ios:staging": "sh scripts/set-env.sh staging && react-native run-ios --simulator='iPhone 16 Plus'",
+    "ios:prod": "sh scripts/set-env.sh production && react-native run-ios --configuration Release",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "start:reset": "react-native start --reset-cache",
+    "test": "jest",
+    "env:dev": "sh scripts/set-env.sh development",
+    "env:staging": "sh scripts/set-env.sh staging",
+    "env:prod": "sh scripts/set-env.sh production",
+    "pod:install": "cd ios && bundle exec pod install && cd .."
   },
   "dependencies": {
     "@notifee/react-native": "^9.1.8",
@@ -47,7 +65,7 @@
     "react-native-permissions": "5.4.2",
     "react-native-qrcode-svg": "6.3.15",
     "react-native-ratings": "8.1.0",
-    "react-native-reanimated": "4.1.5",
+    "react-native-reanimated": "^4.2.2",
     "react-native-responsive-screen": "1.4.2",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "4.15.0",
@@ -57,7 +75,7 @@
     "react-native-toast-message": "^2.3.3",
     "react-native-vector-icons": "10.3.0",
     "react-native-webview": "^13.16.0",
-    "react-native-worklets": "0.6.0",
+    "react-native-worklets": "^0.7.0",
     "zustand": "^5.0.8"
   },
   "devDependencies": {
@@ -84,5 +102,6 @@
   },
   "engines": {
     "node": ">= 22.11.0"
-  }
+  },
+  "packageManager": "yarn@3.6.4"
 }

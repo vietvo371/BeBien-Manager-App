@@ -33,6 +33,7 @@ local.properties
 .cxx/
 *.keystore
 !debug.keystore
+keystore.properties
 .kotlin/
 
 # node.js
@@ -73,3 +74,16 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Environment files (IMPORTANT - Do not commit!)
+src/config/env.ts
+src/config/env.development.ts
+src/config/env.staging.ts
+src/config/env.production.ts
+
+# Firebase config files (IMPORTANT - Do not commit!)
+ios/GoogleService-Info.plist
+android/app/google-services.json
+
+# Keep example files
+!src/config/env.example.ts
