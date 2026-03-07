@@ -164,7 +164,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </Animated.Text>
 
             <Animated.Image
-              source={require('../../assets/images/logo_wise.png')}
+              source={require('../../assets/images/logo.png')}
               style={styles.logoImage}
               resizeMode="contain"
               entering={FadeInDown.duration(800).delay(400).springify()}

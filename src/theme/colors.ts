@@ -6,10 +6,10 @@ import { Platform } from 'react-native';
  */
 export const COLORS = {
   // Brand Colors
-  primary: '#7e2a86',
-  primaryLight: '#d8d1e0ff',
-  primaryDark: '#7A2FE6',
-  secondary: '#00D4FF',
+  primary: '#2B9FD9',
+  primaryLight: '#E3F2FD',
+  primaryDark: '#1E7FB8',
+  secondary: '#5CB85C',
   accent: '#FFD700',
 
   // Background Colors
