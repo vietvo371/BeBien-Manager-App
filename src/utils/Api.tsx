@@ -1,0 +1,193 @@
+import axios from "axios";
+import { Platform } from 'react-native';
+import { getToken, removeToken, saveToken } from "./TokenManager";
+import { navigate, resetTo } from "../navigation/NavigationService";
+import i18n from '../i18n';
+import { ErrorModalManager } from './ErrorModalManager.tsx';
+import env from '../config/env.ts';
+
+// Types
+export interface DashboardStats {
+  batches: {
+    total: number;
+    trend: { value: number; isPositive: boolean; }
+  };
+  qr_scans: {
+    total: number;
+    trend: { value: number; isPositive: boolean; }
+  };
+  products: {
+    total: number;
+    trend: { value: number; isPositive: boolean; }
+  };
+}
+
+export interface Batch {
+  id: string;
+  product_name: string;
+  category: string;
+  weight: number;
+  harvest_date: string;
+  cultivation_method: string;
+  status: 'active' | 'completed' | 'cancelled';
+  image: string;
+}
+
+export interface UserProfile {
+  full_name: string;
+  role: string;
+  farm_name: string;
+  profile_image: string;
+}
+
+// Location interface
+interface LocationData {
+  lat: number;
+  long: number;
+}
+
+// Vì đã bỏ native module geolocation khỏi project,
+// ta chỉ dùng một location mặc định (ví dụ trụ sở trung tâm) và cache lại.
+const DEFAULT_LOCATION: LocationData = {
+  lat: 16.068882,
+  long: 108.245350,
+};
+
+let cachedLocation: LocationData | null = null;
+let locationCacheTime = 0;
+const LOCATION_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+let isShowingAuthAlert = false;
+
+const getCurrentLocation = async (): Promise<LocationData | null> => {
+  const now = Date.now();
+
+  if (cachedLocation && (now - locationCacheTime) < LOCATION_CACHE_DURATION) {
+    return cachedLocation;
+  }
+
+  // Ở bản ERP, không yêu cầu lấy GPS thật từ thiết bị.
+  // Nếu sau này cần lại, có thể tái tích hợp LocationService giống mimo_fe.
+  cachedLocation = DEFAULT_LOCATION;
+  locationCacheTime = now;
+
+  return cachedLocation;
+};
+
+
+const baseUrl = env.API_URL + '/api';
+
+const api = axios.create({
+  baseURL: baseUrl,
+  timeout: 15000, // 15 seconds
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  },
+  maxRedirects: 0,
+  validateStatus: function (status) {
+    return status >= 200 && status < 400;
+  },
+});
+
+api.interceptors.request.use(async (config) => {
+  const token = await getToken();
+  console.log('language', i18n.language);
+  config.headers['x-Language'] = i18n.language || 'vi';
+
+  if (token) {
+    console.log('token', token);
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  getCurrentLocation().then((location) => {
+    if (location) {
+      config.headers['x-location'] = JSON.stringify(location);
+    }
+  }).catch((error) => {
+  });
+
+  return config;
+});
+
+const MAX_RETRY_ATTEMPTS = 2;
+
+const shouldRetry = (error: any, retryCount: number) => {
+  if (retryCount >= MAX_RETRY_ATTEMPTS) return false;
+  if (error.response?.status === 422) return false;
+  if (error.response?.status === 403) return false;
+  return (
+    !error.response ||
+    error.code === 'ECONNABORTED' ||
+    /timeout/i.test(error.message) ||
+    error.response.status === 401 ||
+    (error.response.status >= 500 && error.response.status <= 599)
+  );
+};
+
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  async (error: any) => {
+    const config = error.config;
+
+    config.retryCount = config.retryCount || 0;
+
+    if (shouldRetry(error, config.retryCount)) {
+      config.retryCount += 1;
+      const delayMs = Math.min(1000 * (2 ** config.retryCount), 10000);
+      await new Promise<void>(resolve => setTimeout(resolve, delayMs));
+
+      return api(config);
+    }
+
+    // Timeout error: Logout + Reset to Login
+    if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message)) {
+      console.log('⏱️ Timeout after retries:', error);
+      if (!isShowingAuthAlert) {
+        isShowingAuthAlert = true;
+        ErrorModalManager.showTimeoutError(() => {
+          isShowingAuthAlert = false;
+        });
+      }
+      return Promise.reject(error);
+    }
+
+    // Validation error: Let form handle it
+    if (error.response?.status === 422) {
+      return Promise.reject(error);
+    }
+
+    // Auth errors: Logout + Reset to Login
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      if (!isShowingAuthAlert) {
+        isShowingAuthAlert = true;
+
+        if (error.response?.status === 401) {
+          console.log('🔒 Session expired (401)');
+          ErrorModalManager.showSessionExpired(() => {
+            isShowingAuthAlert = false;
+          });
+        } else {
+          console.log('🚫 Access denied (403)');
+          ErrorModalManager.showAccessDenied(() => {
+            isShowingAuthAlert = false;
+          });
+        }
+      }
+      return Promise.reject(error);
+    }
+
+    console.log('API error after retries:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      message: error.message,
+      retryCount: config.retryCount,
+    });
+    return Promise.reject(error);
+  }
+);
+
+export default api;
