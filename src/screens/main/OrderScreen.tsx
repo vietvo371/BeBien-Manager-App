@@ -21,20 +21,14 @@ import { FilterModal } from '../../components/orders/FilterModal';
 import { useOrderStore } from '../../stores/orderStore';
 import { orderService } from '../../services/orderService';
 import { Order, OrderStatus, OrderFilters } from '../../types/order.types';
+import { useOrderRealtime } from '../../hooks/useOrderRealtime';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  FadeInDown,
-} from 'react-native-reanimated';
+import { alertPrompt } from '../../utils/alertPrompt';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
-import { useOrderRealtime } from '../../hooks/useOrderRealtime';
-import { alertPrompt } from '../../utils/alertPrompt';
 
 type TabValue = 'all' | OrderStatus;
 
@@ -58,17 +52,13 @@ const OrderScreen: React.FC = () => {
   const navigation = useNavigation<OrderScreenNavigationProp>();
   const queryClient = useQueryClient();
   const { filters, setFilters, resetFilters } = useOrderStore();
-  
+
   useOrderRealtime();
-  
+
   const [activeTab, setActiveTab] = useState<TabValue>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
-  
-  const fabOpacity = useSharedValue(1);
-  const fabTranslateY = useSharedValue(0);
-  const lastScrollY = useSharedValue(0);
 
   const currentFilters = useMemo(
     () => ({
@@ -117,24 +107,6 @@ const OrderScreen: React.FC = () => {
   const orders = useMemo(() => {
     return data?.pages.flatMap((page) => page.data.orders) || [];
   }, [data]);
-
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const currentScrollY = event.nativeEvent.contentOffset.y;
-      const scrollDiff = currentScrollY - lastScrollY.value;
-
-      if (scrollDiff > 5 && currentScrollY > 50) {
-        fabOpacity.value = withTiming(0, { duration: 200 });
-        fabTranslateY.value = withSpring(100, { damping: 15 });
-      } else if (scrollDiff < -5 || currentScrollY < 50) {
-        fabOpacity.value = withTiming(1, { duration: 200 });
-        fabTranslateY.value = withSpring(0, { damping: 15 });
-      }
-
-      lastScrollY.value = currentScrollY;
-    },
-    []
-  );
 
   const handleLoadMore = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -205,15 +177,6 @@ const OrderScreen: React.FC = () => {
     setActiveTab('all');
   }, [resetFilters]);
 
-  const handleCreateOrder = useCallback(() => {
-    console.log('Create new order');
-  }, []);
-
-  const fabAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: fabOpacity.value,
-    transform: [{ translateY: fabTranslateY.value }],
-  }));
-
   const renderTabBar = () => (
     <View style={styles.tabBar}>
       {TABS.map((tab) => {
@@ -228,7 +191,7 @@ const OrderScreen: React.FC = () => {
             <Icon
               name={tab.icon}
               size={18}
-              color={isActive ? theme.colors.primary : theme.colors.textSecondary}
+              color={isActive ? theme.colors.primary : theme.colors.white}
             />
             <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
               {tab.label}
@@ -322,8 +285,10 @@ const OrderScreen: React.FC = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Đơn hàng</Text>
         </View>
-        {renderTabBar()}
-        {renderSearchBar()}
+        <View style={styles.tabBarSection}>
+          {renderTabBar()}
+          {renderSearchBar()}
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={styles.loadingText}>Đang tải đơn hàng...</Text>
@@ -338,8 +303,10 @@ const OrderScreen: React.FC = () => {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Đơn hàng</Text>
         </View>
-        {renderTabBar()}
-        {renderSearchBar()}
+        <View style={styles.tabBarSection}>
+          {renderTabBar()}
+          {renderSearchBar()}
+        </View>
         <View style={styles.errorContainer}>
           <Icon name="alert-circle-outline" size={64} color={theme.colors.error} />
           <Text style={styles.errorTitle}>Không thể tải đơn hàng</Text>
@@ -360,7 +327,7 @@ const OrderScreen: React.FC = () => {
           <Text style={styles.headerTitle}>Đơn hàng</Text>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.headerButton}>
-              <Icon name="bell-outline" size={24} color={theme.colors.text} />
+              <Icon name="bell-outline" size={24} color={theme.colors.white} />
               <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText}>3</Text>
               </View>
@@ -368,8 +335,10 @@ const OrderScreen: React.FC = () => {
           </View>
         </View>
 
-        {renderTabBar()}
-        {renderSearchBar()}
+        <View style={styles.tabBarSection}>
+          {renderTabBar()}
+          {renderSearchBar()}
+        </View>
 
         <FlatList
           data={orders}
@@ -379,8 +348,6 @@ const OrderScreen: React.FC = () => {
             styles.listContent,
             orders.length === 0 && styles.listContentEmpty,
           ]}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
           ListEmptyComponent={renderEmptyState}
@@ -397,16 +364,6 @@ const OrderScreen: React.FC = () => {
           }
           showsVerticalScrollIndicator={false}
         />
-
-        <Animated.View style={[styles.fabContainer, fabAnimatedStyle]}>
-          <TouchableOpacity
-            style={styles.fab}
-            onPress={handleCreateOrder}
-            activeOpacity={0.8}
-          >
-            <Icon name="plus" size={28} color={theme.colors.white} />
-          </TouchableOpacity>
-        </Animated.View>
 
         <FilterModal
           visible={isFilterModalVisible}
@@ -434,14 +391,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    backgroundColor: theme.colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.primary,
   },
   headerTitle: {
     fontSize: FONT_SIZE['2xl'],
-    fontWeight: '700',
-    color: theme.colors.text,
+    fontWeight: '800',
+    color: theme.colors.white,
   },
   headerRight: {
     flexDirection: 'row',
@@ -455,7 +410,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 2,
-    backgroundColor: theme.colors.error,
+    backgroundColor: theme.colors.white,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
@@ -465,17 +420,33 @@ const styles = StyleSheet.create({
   },
   notificationBadgeText: {
     fontSize: FONT_SIZE['2xs'],
-    fontWeight: '700',
-    color: theme.colors.white,
+    fontWeight: '800',
+    color: theme.colors.primary,
+  },
+  tabBarSection: {
+    backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    paddingBottom: SPACING.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+    marginBottom: SPACING.md,
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.primary,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     gap: SPACING.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
   },
   tab: {
     flexDirection: 'row',
@@ -484,26 +455,26 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.overlayLight,
   },
   tabActive: {
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.backgroundTertiary,
   },
   tabText: {
     fontSize: FONT_SIZE.sm,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
+    fontWeight: '600',
+    color: theme.colors.white,
   },
   tabTextActive: {
     color: theme.colors.primary,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   searchContainer: {
     flexDirection: 'row',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingVertical: SPACING.xs,
     gap: SPACING.sm,
-    backgroundColor: theme.colors.card,
+    backgroundColor: theme.colors.primary,
   },
   searchBar: {
     flex: 1,
@@ -532,7 +503,7 @@ const styles = StyleSheet.create({
     height: BUTTON_HEIGHT.md,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.primaryLight,
+    backgroundColor: theme.colors.white,
     borderRadius: BORDER_RADIUS.lg,
     position: 'relative',
   },
@@ -623,20 +594,6 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: FONT_SIZE.sm,
     color: theme.colors.textSecondary,
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: SPACING['2xl'],
-    right: SPACING.lg,
-  },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...theme.shadows.lg,
   },
 });
 

@@ -70,36 +70,36 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     if (!validateForm()) {
       return;
     }
-    // navigation.navigate('MainTabs');
+    navigation.navigate('MainTabs');
 
-    setLoading(true);
-    try {
-      // New Student API: signIn(login, password)
-      // login can be email OR student_id (e.g., HV-00485-TVD)
-      const result = await signIn(username, password);
+    // setLoading(true);
+    // try {
+    //   // New Student API: signIn(login, password)
+    //   // login can be email OR student_id (e.g., HV-00485-TVD)
+    //   const result = await signIn(username, password);
 
-      console.log('Login result:', result);
+    //   console.log('Login result:', result);
 
-      if (result.success) {
-        // Login successful - navigate to main tabs
-        navigation.replace('MainTabs');
-      } else {
-        // Handle errors
-        if (result.errors) {
-          setErrors({
-            username: result.errors.login,
-            password: result.errors.password,
-          });
-        } else if (result.error) {
-          AlertService.error(t('auth.loginFailed'), result.error);
-        }
-      }
-    } catch (error: any) {
-      console.log('Login error:', error);
-      AlertService.error(t('auth.loginFailed'), error.message || 'Login failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    //   if (result.success) {
+    //     // Login successful - navigate to main tabs
+    //     navigation.replace('MainTabs');
+    //   } else {
+    //     // Handle errors
+    //     if (result.errors) {
+    //       setErrors({
+    //         username: result.errors.login,
+    //         password: result.errors.password,
+    //       });
+    //     } else if (result.error) {
+    //       AlertService.error(t('auth.loginFailed'), result.error);
+    //     }
+    //   }
+    // } catch (error: any) {
+    //   console.log('Login error:', error);
+    //   AlertService.error(t('auth.loginFailed'), error.message || 'Login failed. Please try again.');
+    // } finally {
+    //   setLoading(false);
+    // }
   };
 
   const handleSocialLogin = (provider: string) => {

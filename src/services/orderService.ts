@@ -95,6 +95,10 @@ class OrderService {
         filtered = filtered.filter(o => o.total <= filters.maxTotal!);
       }
 
+      if (filters?.cancellation_status) {
+        filtered = filtered.filter(o => o.cancellation_status === filters.cancellation_status);
+      }
+
       const start = (page - 1) * perPage;
       const end = start + perPage;
 
@@ -145,6 +149,10 @@ class OrderService {
       params.max_total = filters.maxTotal;
     }
 
+    if (filters?.cancellation_status) {
+      params.cancellation_status = filters.cancellation_status;
+    }
+
     const response = await this.api.get<OrdersResponse>('/orders', { params });
     return response.data;
   }
@@ -152,7 +160,7 @@ class OrderService {
   async getOrderById(orderId: number): Promise<Order> {
     if (USE_MOCK_DATA) {
       await new Promise<void>(resolve => setTimeout(resolve, 300));
-      
+
       const order = this.mockOrders.find(o => o.id === orderId);
       if (!order) {
         throw new Error('Order not found');
@@ -167,7 +175,7 @@ class OrderService {
   async cancelOrder(request: CancelOrderRequest): Promise<CancelOrderResponse> {
     if (USE_MOCK_DATA) {
       await new Promise<void>(resolve => setTimeout(resolve, 500));
-      
+
       const orderIndex = this.mockOrders.findIndex(o => o.id === request.order_id);
       if (orderIndex !== -1) {
         this.mockOrders[orderIndex] = {
@@ -190,7 +198,7 @@ class OrderService {
   async approveCancellation(orderId: number): Promise<CancelOrderResponse> {
     if (USE_MOCK_DATA) {
       await new Promise<void>(resolve => setTimeout(resolve, 300));
-      
+
       const orderIndex = this.mockOrders.findIndex(o => o.id === orderId);
       if (orderIndex !== -1) {
         this.mockOrders[orderIndex] = {
@@ -216,7 +224,7 @@ class OrderService {
   async rejectCancellation(orderId: number, reason: string): Promise<CancelOrderResponse> {
     if (USE_MOCK_DATA) {
       await new Promise<void>(resolve => setTimeout(resolve, 300));
-      
+
       const orderIndex = this.mockOrders.findIndex(o => o.id === orderId);
       if (orderIndex !== -1) {
         this.mockOrders[orderIndex] = {
@@ -241,7 +249,7 @@ class OrderService {
   async updateOrderStatus(orderId: number, status: string): Promise<Order> {
     if (USE_MOCK_DATA) {
       await new Promise<void>(resolve => setTimeout(resolve, 500));
-      
+
       const orderIndex = this.mockOrders.findIndex(o => o.id === orderId);
       if (orderIndex === -1) {
         throw new Error('Order not found');

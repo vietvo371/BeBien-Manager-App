@@ -11,6 +11,7 @@ import { handleApiError } from './errorHandler';
 export interface User {
   id: number;
   name: string;
+  full_name?: string;
   email?: string;
   phone?: string;
   avatar?: string;
@@ -112,7 +113,7 @@ class AuthApiService {
   private readonly TOKEN_KEY = '@auth_token';
   private readonly USER_KEY = '@user_data';
 
- 
+
 
   private api: AxiosInstance;
 
@@ -149,7 +150,7 @@ class AuthApiService {
       throw new Error(response.data.message || 'Login failed');
     } catch (error: any) {
       console.error('Sign in error:', error);
-      
+
       // Show user-friendly error for login failures
       if (error.response?.status === 422 || error.response?.status === 401) {
         ErrorModalManager.showError(
@@ -159,7 +160,7 @@ class AuthApiService {
       } else {
         handleApiError(error, true);
       }
-      
+
       throw error;
     }
   }

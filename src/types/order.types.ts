@@ -55,6 +55,7 @@ export interface OrderFilters {
   tableNumber?: string;
   minTotal?: number;
   maxTotal?: number;
+  cancellation_status?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface OrdersResponse {

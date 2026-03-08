@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Platform } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -16,6 +16,9 @@ import HomeScreen from '../screens/main/HomeScreen';
 import OrderScreen from '../screens/main/OrderScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import OrderDetailScreen from '../screens/main/OrderDetailScreen';
+
+// Common components
+import { GlobalFAB } from '../components/common/GlobalFAB';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -59,48 +62,57 @@ const MainTabs = () => {
   };
 
   return (
-    <Tab.Navigator screenOptions={tabScreenOptions}>
-      <Tab.Screen
-        name="Home"
-        component={HomeScreen}
-        options={{
-          title: 'Trang chủ',
-          tabBarIcon: ({ color }) => (
-            <Icon name="home-variant" size={TAB_BAR.iconSize} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Order"
-        component={OrderScreen}
-        options={{
-          title: 'Đơn hàng',
-          tabBarIcon: ({ color }) => (
-            <Icon
-              name="clipboard-list"
-              size={TAB_BAR.iconSize}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          title: 'Cá nhân',
-          tabBarIcon: ({ color }) => (
-            <Icon
-              name="account-circle"
-              size={TAB_BAR.iconSize}
-              color={color}
-            />
-          ),
-        }}
-      />
-    </Tab.Navigator>
+    <View style={styles.container}>
+      <Tab.Navigator screenOptions={tabScreenOptions}>
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{
+            title: 'Trang chủ',
+            tabBarIcon: ({ color }) => (
+              <Icon name="home-variant" size={TAB_BAR.iconSize} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Order"
+          component={OrderScreen}
+          options={{
+            title: 'Đơn hàng',
+            tabBarIcon: ({ color }) => (
+              <Icon
+                name="clipboard-list"
+                size={TAB_BAR.iconSize}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{
+            title: 'Cá nhân',
+            tabBarIcon: ({ color }) => (
+              <Icon
+                name="account-circle"
+                size={TAB_BAR.iconSize}
+                color={color}
+              />
+            ),
+          }}
+        />
+      </Tab.Navigator>
+      <GlobalFAB />
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});
 
 const MainNavigator = () => {
   return (
