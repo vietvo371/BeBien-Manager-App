@@ -6,8 +6,9 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, AppState, AppStateStatus, Alert, Linking, PermissionsAndroid } from 'react-native';
-import messaging from '@react-native-firebase/messaging';
+import { Platform, AppState, AppStateStatus, Alert, Linking } from 'react-native';
+import { getMessaging, onMessage } from '@react-native-firebase/messaging';
+import { getApp } from '@react-native-firebase/app';
 import DeviceInfo from 'react-native-device-info';
 import {
   setupNotificationListeners,
@@ -43,45 +44,15 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
   onNotification,
   onNotificationOpened,
 }) => {
-  const { user } = useAuth(); // Student user
+  const { user } = useAuth();
   const appState = useRef(AppState.currentState);
   const [hasCheckedPermission, setHasCheckedPermission] = useState(false);
   const [isFirebaseInitialized, setIsFirebaseInitialized] = useState(false);
-  const [parentUser, setParentUser] = useState<any>(null); // Parent user
 
-  // Check parent authentication
+  // Initialize Firebase when user is logged in
   useEffect(() => {
-    const checkParentAuth = async () => {
-      const { authApi } = require('../utils/authApi');
-      const isParentAuth = await authApi.isParentAuthenticated();
-      if (isParentAuth) {
-        const parent = await authApi.getCurrentParent();
-        setParentUser(parent);
-      } else {
-        setParentUser(null);
-      }
-    };
-
-    checkParentAuth();
-
-    // Re-check when app comes to foreground
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        checkParentAuth();
-      }
-    });
-
-    return () => subscription.remove();
-  }, []);
-
-  // Initialize Firebase KHI user (student HOẶC parent) đã login
-  useEffect(() => {
-    const currentUser = user || parentUser; // Student hoặc Parent
-
-    if (currentUser && !isFirebaseInitialized) {
-      const userType = user ? 'student' : 'parent';
-      const userId = user ? user.id : parentUser?.id;
-      console.log(`👤 ${userType} logged in, initializing Firebase...`);
+    if (user && !isFirebaseInitialized) {
+      console.log(`👤 User logged in, initializing Firebase...`, user.id);
 
       const initFirebase = async () => {
         try {
@@ -89,11 +60,10 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
           const success = await initializeFirebase();
 
           if (success) {
-            console.log(`✅ Firebase initialized for ${userType}:`, userId);
+            console.log(`✅ Firebase initialized for user:`, user.id);
             setIsFirebaseInitialized(true);
 
-            // Check permission ngay sau khi initialize
-            // Nếu denied → Show modal hướng dẫn
+            // Check permission after initialization
             await checkAndRequestPermission();
           } else {
             console.warn('⚠️ Firebase initialization failed');
@@ -104,15 +74,13 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
       };
 
       initFirebase();
-    } else if (!currentUser && isFirebaseInitialized) {
+    } else if (!user && isFirebaseInitialized) {
       // User logged out, cleanup Firebase
       console.log('👤 User logged out, cleaning up Firebase...');
-      // NOTE: Device đã được unregister trong AuthContext.signOut() hoặc Parent logout
-      // Không cần unregister lại ở đây
       setIsFirebaseInitialized(false);
-      setHasCheckedPermission(false); // Reset permission check
+      setHasCheckedPermission(false);
     }
-  }, [user, parentUser, isFirebaseInitialized]);
+  }, [user, isFirebaseInitialized]);
 
   useEffect(() => {
     // Chỉ setup listeners KHI Firebase đã initialized
@@ -132,9 +100,8 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
     // Listen to app state changes
     const subscription = AppState.addEventListener('change', handleAppStateChange);
 
-    // Update FCM token when user (student or parent) logs in
-    const currentUser = user || parentUser;
-    if (currentUser) {
+    // Update FCM token when user logs in
+    if (user) {
       updateFCMToken();
     }
 
@@ -153,7 +120,7 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
         unsubscribeNotifee();
       }
     };
-  }, [user, parentUser, isFirebaseInitialized]);
+  }, [user, isFirebaseInitialized]);
 
   /**
    * Check notification permission và prompt user nếu chưa allow
@@ -318,25 +285,12 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
   };
 
   /**
-   * Navigate to notification screen based on user type
-   * Student → ThongBao
-   * Parent → ThongBao_Parent
+   * Navigate to notification screen
    */
   const navigateToNotificationScreen = () => {
     try {
-      const currentUser = user || parentUser;
-      const isStudent = !!user;
-
-      if (!currentUser) {
-        console.warn('⚠️ No user logged in, cannot navigate to notification screen');
-        return;
-      }
-
-      // Detect user type and navigate to appropriate screen
-      const screenName = isStudent ? 'ThongBao' : 'ThongBao_Parent';
-      const userType = isStudent ? 'student' : 'parent';
-
-      console.log(`🔔 Navigating to ${screenName} for ${userType}`);
+      const screenName = 'Home'; // Changed from 'ThongBao'
+      console.log(`🔔 Navigating to ${screenName}`);
 
       // Use NavigationService to navigate
       NavigationService.navigate(screenName as any);
@@ -373,42 +327,29 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
       console.log('📱 App has come to foreground');
 
       // Re-register FCM token (xóa cũ, lấy mới)
-      const currentUser = user || parentUser;
-      if (currentUser && isFirebaseInitialized) {
+      if (isFirebaseInitialized) {
         console.log('🔄 Re-registering FCM token after returning to foreground...');
         const newToken = await reregisterFCMToken();
 
         if (newToken) {
           // Update token to backend
-          const isStudent = !!user;
           const deviceInfo = await getDeviceInfo();
 
           try {
             // Check if user still has valid token before registering
-            const hasToken = isStudent
-              ? await authApi.getToken()
-              : await authApi.getParentToken();
+            const hasToken = await authApi.getToken();
 
             if (!hasToken) {
               console.log('⚠️ No auth token found, skipping device registration');
               return;
             }
 
-            if (isStudent) {
-              await authApi.registerDevice(
-                newToken,
-                deviceInfo.deviceType,
-                deviceInfo.deviceName,
-                deviceInfo.deviceId
-              );
-            } else {
-              await authApi.registerParentDevice(
-                newToken,
-                deviceInfo.deviceType,
-                deviceInfo.deviceName,
-                deviceInfo.deviceId
-              );
-            }
+            await authApi.registerDevice( 
+              newToken,
+              deviceInfo.deviceType,
+              deviceInfo.deviceName,
+              deviceInfo.deviceId
+            );
             console.log('✅ FCM token re-registered with backend');
           } catch (error) {
             console.error('❌ Error re-registering token with backend:', error);
@@ -451,42 +392,27 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
   const updateFCMToken = async () => {
     try {
       const token = await getFCMToken();
-      const currentUser = user || parentUser;
 
-      if (token && currentUser) {
-        const isStudent = !!user;
-        const userType = isStudent ? 'student' : 'parent';
-        const userId = user ? user.id : parentUser?.id;
-        console.log(`🔄 Registering device with FCM token for ${userType}:`, userId);
+      if (token && user) {
+        console.log(`🔄 Registering device with FCM token for user:`, user.id);
 
         const deviceInfo = await getDeviceInfo();
 
         // Check if user still has valid token before registering
-        const hasToken = isStudent
-          ? await authApi.getToken()
-          : await authApi.getParentToken();
+        const hasToken = await authApi.getToken();
 
         if (!hasToken) {
           console.log('⚠️ No auth token found, skipping device registration');
           return;
         }
 
-        // Register device - gọi API khác nhau tùy user type
-        if (isStudent) {
-          await authApi.registerDevice(
-            token,
-            deviceInfo.deviceType,
-            deviceInfo.deviceName,
-            deviceInfo.deviceId
-          );
-        } else {
-          await authApi.registerParentDevice(
-            token,
-            deviceInfo.deviceType,
-            deviceInfo.deviceName,
-            deviceInfo.deviceId
-          );
-        }
+        // Register device
+        await authApi.registerDevice(
+          token,
+          deviceInfo.deviceType,
+          deviceInfo.deviceName,
+          deviceInfo.deviceId
+        );
 
         console.log('✅ Device registered successfully');
       }
@@ -539,18 +465,9 @@ export const unregisterCurrentDevice = async () => {
       return;
     }
 
-    // Check if parent is logged in
-    const isParentAuth = await authApi.isParentAuthenticated();
-
-    if (isParentAuth) {
-      // Parent logout
-      await authApi.unregisterParentDevice(token);
-      console.log('✅ Parent device unregistered on logout');
-    } else {
-      // Student logout
-      await authApi.unregisterDevice(token);
-      console.log('✅ Student device unregistered on logout');
-    }
+    // Unregister device
+    await authApi.unregisterDevice(token);
+    console.log('✅ Device unregistered on logout');
   } catch (error: any) {
     // Check if backend FCM is not configured
     if (error?.message?.includes('serverKey') || error?.message?.includes('FCM')) {

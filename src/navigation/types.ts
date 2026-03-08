@@ -12,6 +12,7 @@ export type RootStackParamList = {
   Loading: undefined;
   Login: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList>;
+  OrderDetail: { orderId: number };
 };
 
 export type RootStackScreen<T extends keyof RootStackParamList> = React.FC<

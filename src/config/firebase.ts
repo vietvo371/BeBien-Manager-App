@@ -2,9 +2,20 @@
  * Firebase Configuration
  * 
  * Setup Firebase Cloud Messaging (FCM) for push notifications
+ * Updated to use modular API (v22+)
  */
 
-import messaging from '@react-native-firebase/messaging';
+import {
+  getMessaging,
+  getToken,
+  deleteToken,
+  onMessage,
+  requestPermission,
+  hasPermission,
+  AuthorizationStatus,
+  FirebaseMessagingTypes
+} from '@react-native-firebase/messaging';
+import { getApp } from '@react-native-firebase/app';
 import { Platform } from 'react-native';
 import env from './env';
 
@@ -51,21 +62,22 @@ export async function checkNotificationPermission(): Promise<{
     }
 
     // iOS - Check current status
-    const authStatus = await messaging().hasPermission();
-    const hasPermission =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+    const messagingInstance = getMessaging(getApp());
+    const authStatus = await hasPermission(messagingInstance);
+    const hasPermissionStatus =
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL;
 
-    const canRequest = authStatus === messaging.AuthorizationStatus.NOT_DETERMINED;
+    const canRequest = authStatus === AuthorizationStatus.NOT_DETERMINED;
 
     let status = 'denied';
-    if (hasPermission) status = 'granted';
+    if (hasPermissionStatus) status = 'granted';
     else if (canRequest) status = 'not_determined';
 
     console.log(`📱 iOS notification permission status: ${status} (${authStatus})`);
 
     return {
-      hasPermission,
+      hasPermission: hasPermissionStatus,
       canRequest,
       status,
     };
@@ -90,13 +102,13 @@ export async function requestUserPermission(): Promise<boolean> {
     const { hasPermission, canRequest, status } = await checkNotificationPermission();
 
     // Nếu đã có permission, return true ngay
-    if (hasPermission) {
+    if (hasPermission && Platform.OS !== 'ios') {
       console.log('✅ Notification permission already granted');
       return true;
     }
 
     // Nếu không thể request (đã denied trước đó), return false
-    if (!canRequest) {
+    if (!canRequest && Platform.OS !== 'ios') {
       console.log('⚠️ Cannot request permission - user must enable in Settings');
       console.log('Current status:', status);
       return false;
@@ -118,10 +130,20 @@ export async function requestUserPermission(): Promise<boolean> {
     }
 
     // iOS - Request permission (chỉ khi status = NOT_DETERMINED)
-    const authStatus = await messaging().requestPermission();
+    const messagingInstance = getMessaging(getApp());
+    const authStatus = await requestPermission(messagingInstance);
     const enabled =
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL;
+
+    // Request notifee permission explicitly to ensure banners show up
+    if (notifee && Platform.OS === 'ios') {
+      try {
+        await notifee.requestPermission();
+      } catch (e) {
+        console.warn('⚠️ Error requesting notifee permission', e);
+      }
+    }
 
     if (enabled) {
       console.log('✅ iOS notification permission granted:', authStatus);
@@ -149,22 +171,21 @@ export async function getFCMToken(forceRefresh: boolean = false): Promise<string
       return null;
     }
 
-    // Check if device supports FCM
-    if (!messaging().isDeviceRegisteredForRemoteMessages) {
-      await messaging().registerDeviceForRemoteMessages();
-    }
+    // Get messaging instance
+    // Note: iOS auto-registration is enabled by default
+    const messagingInstance = getMessaging(getApp());
 
     // Xóa token cũ nếu forceRefresh = true (tránh duplicate tokens)
     if (forceRefresh) {
       try {
-        await messaging().deleteToken();
+        await deleteToken(messagingInstance);
         console.log('🗑️ Deleted old FCM token');
       } catch (deleteError) {
         console.log('⚠️ No old token to delete or deletion failed:', deleteError);
       }
     }
 
-    const token = await messaging().getToken();
+    const token = await getToken(messagingInstance);
 
     if (token) {
       console.log('✅ FCM Token:', token);
@@ -239,6 +260,12 @@ export async function displayLocalNotification(
       ...(Platform.OS === 'ios' && {
         ios: {
           sound: 'default',
+          foregroundPresentationOptions: {
+            badge: true,
+            sound: true,
+            banner: true,
+            list: true,
+          },
         },
       }),
     });
@@ -255,8 +282,10 @@ export function setupNotificationListeners(
   onNotification?: (message: any) => void,
   onNotificationOpened?: (message: any) => void
 ) {
+  const messagingInstance = getMessaging(getApp());
+
   // Foreground message handler
-  const unsubscribeForeground = messaging().onMessage(async (remoteMessage) => {
+  const unsubscribeForeground = onMessage(messagingInstance, async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
     console.log('📱 Foreground notification received:', remoteMessage);
 
     if (onNotification) {
@@ -265,7 +294,7 @@ export function setupNotificationListeners(
   });
 
   // Background/Quit state message handler
-  messaging().onNotificationOpenedApp((remoteMessage) => {
+  messagingInstance.onNotificationOpenedApp((remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
     console.log('📱 Notification opened app from background:', remoteMessage);
 
     if (onNotificationOpened) {
@@ -274,9 +303,9 @@ export function setupNotificationListeners(
   });
 
   // Check if app was opened by notification (when app was completely closed)
-  messaging()
+  messagingInstance
     .getInitialNotification()
-    .then((remoteMessage) => {
+    .then((remoteMessage: FirebaseMessagingTypes.RemoteMessage | null) => {
       if (remoteMessage) {
         console.log('📱 Notification opened app from quit state:', remoteMessage);
 
@@ -287,7 +316,7 @@ export function setupNotificationListeners(
     });
 
   // Token refresh listener
-  const unsubscribeTokenRefresh = messaging().onTokenRefresh(async (token) => {
+  const unsubscribeTokenRefresh = messagingInstance.onTokenRefresh(async (token: string) => {
     console.log('🔄 FCM Token refreshed:', token);
     // TODO: Send new token to backend
   });
@@ -304,7 +333,8 @@ export function setupNotificationListeners(
  * Phải đăng ký trước khi app khởi động (trong index.js)
  */
 export function setupBackgroundMessageHandler() {
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  const messagingInstance = getMessaging(getApp());
+  messagingInstance.setBackgroundMessageHandler(async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
     console.log('📱 Background notification received:', remoteMessage);
     // Handle background notification
   });

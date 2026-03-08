@@ -70,6 +70,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     if (!validateForm()) {
       return;
     }
+    // navigation.navigate('MainTabs');
 
     setLoading(true);
     try {

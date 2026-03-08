@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android --mode=devDebug --appId=vn.com.bebien.manager.dev",
-    "android:dev": "sh scripts/set-env.sh development && react-native run-android --mode=devDebug --appId=vn.com.bebien.manager.dev",
+    "android:dev": "sh scripts/set-env.sh development && react-native run-android --mode=devDebug --appId=vn.com.bebien.manager.dev ",
     "android:staging": "sh scripts/set-env.sh staging && react-native run-android --mode=stagingDebug --appId=vn.com.bebien.manager.staging",
     "android:prod": "sh scripts/set-env.sh production && react-native run-android --mode=prodRelease --appId=vn.com.bebien.manager",
     "android:build:dev": "sh scripts/set-env.sh development && cd android && ./gradlew assembleDevRelease",

@@ -15,6 +15,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 import HomeScreen from '../screens/main/HomeScreen';
 import OrderScreen from '../screens/main/OrderScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import OrderDetailScreen from '../screens/main/OrderDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -119,6 +120,7 @@ const MainNavigator = () => {
       <Stack.Screen name="Loading" component={LoadingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
     </Stack.Navigator>
   );
 };

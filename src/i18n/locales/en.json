@@ -825,5 +825,79 @@
     "vipRateDescription": "For VIP customers",
     "vipBenefits": "VIP Benefits",
     "vipBenefitsDescription": "• Best market rates\n• 24/7 support\n• Unlimited transactions\n• Lowest transaction fees"
+  },
+  "orders": {
+    "title": "Orders",
+    "orderDetail": "Order Detail",
+    "createOrder": "Create Order",
+    "orderCode": "Order Code",
+    "tableNumber": "Table Number",
+    "customerName": "Customer Name",
+    "customerPhone": "Customer Phone",
+    "status": {
+      "all": "All",
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "preparing": "Preparing",
+      "ready": "Ready",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "filter": {
+      "title": "Filters",
+      "subtitle": "Customize order display",
+      "status": "Status",
+      "tableNumber": "Table Number",
+      "priceRange": "Price Range",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "reset": "Reset"
+    },
+    "search": {
+      "placeholder": "Search orders, table number..."
+    },
+    "empty": {
+      "title": "No orders",
+      "subtitle": "No orders in the list yet",
+      "searchNoResults": "No matching orders found"
+    },
+    "loading": "Loading orders...",
+    "loadingMore": "Loading more...",
+    "error": "Cannot load orders",
+    "errorSubtitle": "Please check connection and try again",
+    "cancel": {
+      "title": "Cancel Order",
+      "message": "Are you sure you want to cancel order #{{orderCode}}?",
+      "reasonTitle": "Cancellation Reason",
+      "reasonMessage": "Please enter reason for cancellation",
+      "reasonRequired": "Please enter cancellation reason",
+      "success": "Order cancellation request has been sent",
+      "error": "Cannot cancel order",
+      "pending": "Awaiting cancellation approval"
+    },
+    "card": {
+      "items": "items",
+      "products": "products",
+      "total": "Total"
+    },
+    "detail": {
+      "customerInfo": "Customer Information",
+      "orderItems": "Order Items",
+      "summary": "Summary",
+      "notes": "Notes",
+      "subtotal": "Subtotal",
+      "discount": "Discount",
+      "tax": "Tax VAT",
+      "total": "Total",
+      "time": "Time",
+      "actions": {
+        "confirm": "Confirm",
+        "startPreparing": "Start Preparing",
+        "markReady": "Mark Ready",
+        "complete": "Complete",
+        "updateStatus": "Update order status?"
+      }
+    }
   }
 }

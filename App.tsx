@@ -39,7 +39,7 @@ const AppContent = () => {
   }, []);
 
   const handleNotificationOpened = React.useCallback((notification: any) => {
-    console.log('🔔 Notification opened:', notification);
+    console.log('🔔 Notification opened:', notification);``
     // Navigate to appropriate screen based on notification data
   }, []);
 

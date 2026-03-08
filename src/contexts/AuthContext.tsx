@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { authApi } from '../utils/authApi';
-import { User } from '../types/student-api.types';
+import { User } from '../utils/authApi';
 import { unregisterCurrentDevice } from '../component/NotificationService';
 import { resetTo } from '../navigation/NavigationService';
 

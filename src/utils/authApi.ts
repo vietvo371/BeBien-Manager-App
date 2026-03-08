@@ -1,14 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosInstance } from 'axios';
 import env from '../config/env';
-import { User, LoginResponse, ApiResponse } from '../types/student-api.types';
-import { ParentUser, ParentLoginResponse } from '../types/parent-api.types';
 import { ErrorModalManager } from './ErrorModalManager';
 import { handleApiError } from './errorHandler';
 
 // ============================================================================
 // TYPES
 // ============================================================================
+
+export interface User {
+  id: number;
+  name: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  role?: string;
+  is_master?: number; // 0 = Cashier, 1 = Manager
+  created_at?: string;
+  updated_at?: string;
+}
 
 export interface SignUpData {
   email?: string;
@@ -23,14 +33,20 @@ export interface SignInResponse {
   token: string;
 }
 
-export interface SignInParentResponse {
-  parent: ParentUser;
-  token: string;
+export interface LoginResponse {
+  status: boolean;
+  data: {
+    token: string;
+    student?: User;
+  };
+  message?: string;
 }
 
-// Export User from student-api.types
-export type { User };
-export type { ParentUser };
+export interface ApiResponse<T = any> {
+  status: boolean;
+  data?: T;
+  message?: string;
+}
 
 // ============================================================================
 // API CLIENTS
@@ -40,9 +56,9 @@ export type { ParentUser };
  * Create dedicated axios instance for Student API
  * Base URL: /api/student
  */
-const createStudentApiClient = (): AxiosInstance => {
-  const studentApi = axios.create({
-    baseURL: `${env.API_URL}/api/student`,
+const createApiClient = (): AxiosInstance => {
+  const api = axios.create({
+    baseURL: `${env.API_URL}/api`,
     timeout: 15000,
     headers: {
       'Content-Type': 'application/json',
@@ -51,7 +67,7 @@ const createStudentApiClient = (): AxiosInstance => {
   });
 
   // Request interceptor: Add Bearer token
-  studentApi.interceptors.request.use(
+  api.interceptors.request.use(
     async (config) => {
       const token = await AsyncStorage.getItem('@auth_token');
       if (token) {
@@ -64,7 +80,7 @@ const createStudentApiClient = (): AxiosInstance => {
   );
 
   // Response interceptor: Handle Laravel error format and show user-friendly errors
-  studentApi.interceptors.response.use(
+  api.interceptors.response.use(
     (response) => response,
     (error) => {
       if (error.response?.data) {
@@ -84,58 +100,7 @@ const createStudentApiClient = (): AxiosInstance => {
     }
   );
 
-  return studentApi;
-};
-
-/**
- * Create dedicated axios instance for Parent API
- * Base URL: /api/parent
- */
-const createParentApiClient = (): AxiosInstance => {
-  const parentApi = axios.create({
-    baseURL: `${env.API_URL}/api/parent`,
-    timeout: 15000,
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-  });
-
-  // Request interceptor: Add Bearer token
-  parentApi.interceptors.request.use(
-    async (config) => {
-      const token = await AsyncStorage.getItem('@parent_auth_token');
-      console.log('parent_token', token);
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-        console.log('parent_token', token);
-      }
-      return config;
-    },
-    (error) => Promise.reject(error)
-  );
-
-  // Response interceptor: Handle error format and show user-friendly errors
-  parentApi.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error.response?.data) {
-        const { message, errors } = error.response.data;
-        error.message = message || 'An error occurred';
-        error.validationErrors = errors;
-      }
-
-      // Handle errors with modal (except 401/403 which are handled by main Api.tsx)
-      const status = error.response?.status;
-      if (status !== 401 && status !== 403 && status !== 422) {
-        handleApiError(error, true); // ✅ Auto show modal for errors
-      }
-
-      return Promise.reject(error);
-    }
-  );
-
-  return parentApi;
+  return api;
 };
 
 // ============================================================================
@@ -147,16 +112,12 @@ class AuthApiService {
   private readonly TOKEN_KEY = '@auth_token';
   private readonly USER_KEY = '@user_data';
 
-  // Parent Keys
-  private readonly PARENT_TOKEN_KEY = '@parent_auth_token';
-  private readonly PARENT_USER_KEY = '@parent_user_data';
+ 
 
-  private studentApi: AxiosInstance;
-  private parentApi: AxiosInstance;
+  private api: AxiosInstance;
 
   constructor() {
-    this.studentApi = createStudentApiClient();
-    this.parentApi = createParentApiClient();
+    this.api = createApiClient();
   }
 
   // ==========================================================================
@@ -169,7 +130,7 @@ class AuthApiService {
    */
   async signIn(login: string, password: string): Promise<SignInResponse> {
     try {
-      const response = await this.studentApi.post('/login', {
+      const response = await this.api.post('/login', {
         login,
         password,
       });
@@ -210,7 +171,7 @@ class AuthApiService {
   async signOut(): Promise<void> {
     try {
       // Call backend to invalidate token
-      await this.studentApi.post('/logout');
+      await this.api.post('/logout');
     } catch (error) {
       console.error('Sign out error:', error);
       // Continue to clear local storage even if API call fails
@@ -227,7 +188,7 @@ class AuthApiService {
    */
   async getCurrentUser(): Promise<User | null> {
     try {
-      const response = await this.studentApi.get('/me');
+      const response = await this.api.get('/me');
 
       // Actual API format: { status: true, data: { student: {...} } }
       if (response.data.status === true && response.data.data?.student) {
@@ -286,7 +247,7 @@ class AuthApiService {
    */
   async changePassword(newPassword: string): Promise<void> {
     try {
-      const response = await this.studentApi.post('/change-password', {
+      const response = await this.api.post('/change-password', {
         password: newPassword,
         password_confirmation: newPassword,
       });
@@ -315,7 +276,7 @@ class AuthApiService {
     deviceId: string
   ): Promise<void> {
     try {
-      const response = await this.studentApi.post('/device/register', {
+      const response = await this.api.post('/device/register', {
         fcm_token: fcmToken,
         device_type: deviceType,
         device_name: deviceName,
@@ -340,7 +301,7 @@ class AuthApiService {
    */
   async unregisterDevice(fcmToken: string): Promise<void> {
     try {
-      const response = await this.studentApi.post('/device/unregister', {
+      const response = await this.api.post('/device/unregister', {
         fcm_token: fcmToken,
       });
 
@@ -357,171 +318,6 @@ class AuthApiService {
   }
 
   // ==========================================================================
-  // PARENT AUTH
-  // ==========================================================================
-
-  /**
-   * Register FCM device token for parent push notifications
-   * POST /api/parent/device/register
-   */
-  async registerParentDevice(
-    fcmToken: string,
-    deviceType: 'android' | 'ios',
-    deviceName: string,
-    deviceId: string
-  ): Promise<void> {
-    try {
-      const response = await this.parentApi.post('/device/register', {
-        fcm_token: fcmToken,
-        device_type: deviceType,
-        device_name: deviceName,
-        device_id: deviceId,
-      });
-
-      if (response.data?.status === 'success' || response.data?.status === true) {
-        console.log('Parent device registered successfully');
-        return;
-      }
-
-      throw new Error(response.data?.message || 'Đăng ký thiết bị thất bại');
-    } catch (error: any) {
-      console.error('Error registering parent device:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Unregister FCM device token for parent
-   * POST /api/parent/device/unregister
-   */
-  async unregisterParentDevice(fcmToken: string): Promise<void> {
-    try {
-      const response = await this.parentApi.post('/device/unregister', {
-        fcm_token: fcmToken,
-      });
-
-      if (response.data?.status === 'success' || response.data?.status === true) {
-        console.log('Parent device unregistered successfully');
-        return;
-      }
-
-      throw new Error(response.data?.message || 'Hủy đăng ký thiết bị thất bại');
-    } catch (error: any) {
-      console.error('Error unregistering parent device:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Sign in parent
-   * POST /api/parent/login
-   */
-  async signInParent(username: string, password: string): Promise<SignInParentResponse> {
-    try {
-      const response = await this.parentApi.post('/login', {
-        username: username,
-        password: password,
-      });
-
-      // API format: { status: true, message: "...", data: { token: "...", parent: {...} } }
-      if (response.data.status === true && response.data.data) {
-        const { token, parent } = response.data.data;
-
-        // Save tokens and user data
-        await this.saveParentToken(token);
-        await this.saveParentUser(parent);
-
-        return { parent, token };
-      }
-
-      throw new Error(response.data.message || 'Login failed');
-    } catch (error: any) {
-      console.error('Parent Sign in error:', error);
-      
-      // Show user-friendly error for login failures
-      if (error.response?.status === 422 || error.response?.status === 401) {
-        ErrorModalManager.showError(
-          'Đăng nhập thất bại',
-          error.message || 'Tên đăng nhập hoặc mật khẩu không đúng'
-        );
-      } else {
-        handleApiError(error, true);
-      }
-      
-      throw error;
-    }
-  }
-
-  /**
-   * Sign out parent
-   * POST /api/parent/logout
-   */
-  async signOutParent(): Promise<void> {
-    try {
-      await this.parentApi.post('/logout');
-    } catch (error) {
-      console.error('Parent Sign out error:', error);
-    } finally {
-      await AsyncStorage.multiRemove([this.PARENT_TOKEN_KEY, this.PARENT_USER_KEY]);
-    }
-  }
-
-  /**
-   * Change parent password
-   * POST /api/parent/change-password
-   */
-  async changeParentPassword(currentPassword: string, newPassword: string): Promise<void> {
-    try {
-      const response = await this.parentApi.post('/change-password', {
-        current_password: currentPassword,
-        new_password: newPassword,
-      });
-
-      if (response.data?.status === 'success' || response.data?.status === true) {
-        console.log('Parent password changed successfully');
-        return;
-      }
-
-      throw new Error(response.data?.message || 'Đổi mật khẩu thất bại');
-    } catch (error: any) {
-      console.error('Error changing parent password:', error);
-      if (error.response?.data?.message) {
-        throw new Error(error.response.data.message);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Get current parent info from storage
-   */
-  async getCurrentParent(): Promise<ParentUser | null> {
-    try {
-      const userData = await AsyncStorage.getItem(this.PARENT_USER_KEY);
-      if (userData) {
-        return JSON.parse(userData);
-      }
-      return null;
-    } catch (error) {
-      console.error('Error loading stored parent user:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Check if parent is authenticated
-   */
-  async isParentAuthenticated(): Promise<boolean> {
-    try {
-      const token = await this.getParentToken();
-      return !!token;
-    } catch (error) {
-      return false;
-    }
-  }
-
-
-  // ============================================================================
   // TOKEN MANAGEMENT (STUDENT)
   // ============================================================================
 
@@ -571,35 +367,6 @@ class AuthApiService {
     }
   }
 
-  // ============================================================================
-  // TOKEN MANAGEMENT (PARENT)
-  // ============================================================================
-
-  private async saveParentToken(token: string): Promise<void> {
-    try {
-      await AsyncStorage.setItem(this.PARENT_TOKEN_KEY, token);
-    } catch (error) {
-      console.error('Error saving parent token:', error);
-    }
-  }
-
-  async getParentToken(): Promise<string | null> {
-    try {
-      return await AsyncStorage.getItem(this.PARENT_TOKEN_KEY);
-    } catch (error) {
-      console.error('Error getting parent token:', error);
-      return null;
-    }
-  }
-
-  private async saveParentUser(user: ParentUser): Promise<void> {
-    try {
-      await AsyncStorage.setItem(this.PARENT_USER_KEY, JSON.stringify(user));
-    } catch (error) {
-      console.error('Error saving parent user:', error);
-    }
-  }
-  // ============================================================================
   // COMMON AUTH METHODS
   // ============================================================================
 
@@ -640,5 +407,4 @@ export const authApi = new AuthApiService();
 
 // Helper exports for convenience
 export const getCurrentUser = () => authApi.getCurrentUser();
-export const getCurrentParent = () => authApi.getCurrentParent();
 

@@ -2,9 +2,15 @@
  * Push Notification Helper
  * 
  * Utility functions để làm việc với push notifications
+ * Updated to use modular API (v22+)
  */
 
-import messaging from '@react-native-firebase/messaging';
+import { 
+  getMessaging, 
+  hasPermission, 
+  AuthorizationStatus 
+} from '@react-native-firebase/messaging';
+import { getApp } from '@react-native-firebase/app';
 import { Platform, PermissionsAndroid } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -27,10 +33,11 @@ export async function checkNotificationPermission(): Promise<boolean> {
     }
 
     // iOS
-    const authStatus = await messaging().hasPermission();
+    const messagingInstance = getMessaging(getApp());
+    const authStatus = await hasPermission(messagingInstance);
     return (
-      authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-      authStatus === messaging.AuthorizationStatus.PROVISIONAL
+      authStatus === AuthorizationStatus.AUTHORIZED ||
+      authStatus === AuthorizationStatus.PROVISIONAL
     );
   } catch (error) {
     console.error('Error checking notification permission:', error);
@@ -97,7 +104,8 @@ export async function clearFCMToken(): Promise<void> {
  */
 export async function subscribeToTopic(topic: string): Promise<boolean> {
   try {
-    await messaging().subscribeToTopic(topic);
+    const messagingInstance = getMessaging(getApp());
+    await messagingInstance.subscribeToTopic(topic);
     console.log(`✅ Subscribed to topic: ${topic}`);
     return true;
   } catch (error) {
@@ -111,7 +119,8 @@ export async function subscribeToTopic(topic: string): Promise<boolean> {
  */
 export async function unsubscribeFromTopic(topic: string): Promise<boolean> {
   try {
-    await messaging().unsubscribeFromTopic(topic);
+    const messagingInstance = getMessaging(getApp());
+    await messagingInstance.unsubscribeFromTopic(topic);
     console.log(`✅ Unsubscribed from topic: ${topic}`);
     return true;
   } catch (error) {
@@ -126,7 +135,8 @@ export async function unsubscribeFromTopic(topic: string): Promise<boolean> {
 export async function getBadgeCount(): Promise<number> {
   if (Platform.OS === 'ios') {
     try {
-      return await messaging().getBadge();
+      const messagingInstance = getMessaging(getApp());
+      return await messagingInstance.getBadge();
     } catch (error) {
       console.error('Error getting badge count:', error);
     }
@@ -140,7 +150,8 @@ export async function getBadgeCount(): Promise<number> {
 export async function setBadgeCount(count: number): Promise<void> {
   if (Platform.OS === 'ios') {
     try {
-      await messaging().setBadge(count);
+      const messagingInstance = getMessaging(getApp());
+      await messagingInstance.setBadge(count);
     } catch (error) {
       console.error('Error setting badge count:', error);
     }
@@ -153,7 +164,8 @@ export async function setBadgeCount(count: number): Promise<void> {
 export async function clearNotifications(): Promise<void> {
   try {
     if (Platform.OS === 'ios') {
-      await messaging().setBadge(0);
+      const messagingInstance = getMessaging(getApp());
+      await messagingInstance.setBadge(0);
     }
     // Android: Clear notifications from notification tray
     // Note: Cần native module để clear Android notifications
