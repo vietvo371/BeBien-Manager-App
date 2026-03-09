@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     View,
     Text,
@@ -7,192 +7,229 @@ import {
     FlatList,
     RefreshControl,
     ActivityIndicator,
-    Alert,
     TouchableOpacity,
     Platform,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { theme, SPACING, FONT_SIZE } from '../../theme';
+import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { orderService } from '../../services/orderService';
-import { Order } from '../../types/order.types';
+import { PendingCancelItem, parse422Error } from '../../types/order.types';
 import { useOrderRealtime } from '../../hooks/useOrderRealtime';
-import { alertPrompt } from '../../utils/alertPrompt';
 import { ApprovalCard } from '../../components/orders/ApprovalCard';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../navigation/types';
+import { ResolvedCard } from '../../components/orders/ResolvedCard';
+import CustomAlert, { AlertType, AlertButton } from '../../component/CustomAlert';
 
-type HomeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type TabKey = 'pending' | 'approved' | 'rejected';
+
+interface AlertState {
+    visible: boolean;
+    type: AlertType;
+    title?: string;
+    message?: string;
+    buttons?: AlertButton[];
+}
+
+const ALERT_HIDDEN: AlertState = { visible: false, type: 'info' };
+
+// ─── Tab config ──────────────────────────────────────────────────────────────
+
+const TABS: { key: TabKey; label: string; icon: string }[] = [
+    { key: 'pending',  label: 'Chờ duyệt', icon: 'clock-outline' },
+    { key: 'approved', label: 'Đã duyệt',  icon: 'check-circle-outline' },
+    { key: 'rejected', label: 'Từ chối',   icon: 'close-circle-outline' },
+];
+
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 const HomeScreen: React.FC = () => {
-    const navigation = useNavigation<HomeScreenNavigationProp>();
     const queryClient = useQueryClient();
+    const [activeTab, setActiveTab] = useState<TabKey>('pending');
+    const [alertState, setAlertState] = useState<AlertState>(ALERT_HIDDEN);
 
-    // Lắng nghe realtime sự kiện huỷ đơn
+    const hideAlert = useCallback(() => setAlertState(ALERT_HIDDEN), []);
+    const showAlert = useCallback((config: Omit<AlertState, 'visible'>) => {
+        setAlertState({ visible: true, ...config });
+    }, []);
+
     useOrderRealtime();
 
-    // Load danh sách đơn chờ duyệt huỷ
-    const {
-        data,
-        refetch,
-        isLoading,
-        isRefetching,
-        isError,
-    } = useQuery({
-        queryKey: ['orders', { cancellation_status: 'pending' }],
-        queryFn: () => orderService.getOrders(1, 50, { cancellation_status: 'pending' }),
+    // ── Queries ──────────────────────────────────────────────────────────────
+
+    const pendingQuery = useQuery({
+        queryKey: ['cancel-items', 'pending'],
+        queryFn: () => orderService.getPendingCancelItems(),
         staleTime: 30000,
     });
 
-    const orders = data?.data?.orders || [];
+    const approvedQuery = useQuery({
+        queryKey: ['cancel-items', 'approved'],
+        queryFn: () => orderService.getResolvedCancelItems(2),
+        staleTime: 30000,
+        enabled: activeTab === 'approved',
+    });
 
-    const approveMutation = useMutation({
-        mutationFn: (orderId: number) => orderService.approveCancellation(orderId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            Alert.alert('Thành công', 'Đã duyệt yêu cầu hủy đơn hàng');
+    const rejectedQuery = useQuery({
+        queryKey: ['cancel-items', 'rejected'],
+        queryFn: () => orderService.getResolvedCancelItems(-1),
+        staleTime: 30000,
+        enabled: activeTab === 'rejected',
+    });
+
+    const pendingItems   = pendingQuery.data  || [];
+    const approvedItems  = approvedQuery.data || [];
+    const rejectedItems  = rejectedQuery.data || [];
+
+    const activeQuery = activeTab === 'pending'
+        ? pendingQuery
+        : activeTab === 'approved'
+        ? approvedQuery
+        : rejectedQuery;
+
+    const activeItems = activeTab === 'pending'
+        ? pendingItems
+        : activeTab === 'approved'
+        ? approvedItems
+        : rejectedItems;
+
+    // ── Mutation ─────────────────────────────────────────────────────────────
+
+    const actionMutation = useMutation({
+        mutationFn: (params: { id_chi_tiet: number; type: 2 | -1 }) =>
+            orderService.actionDuyet(params),
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['cancel-items'] });
+            const label = variables.type === 2 ? 'Đã duyệt' : 'Đã từ chối';
+            showAlert({ type: 'success', message: data.message || label });
         },
         onError: (error: any) => {
-            Alert.alert('Lỗi', error.response?.data?.message || 'Không thể duyệt đơn hàng');
+            const msg = error?.response?.status === 422
+                ? parse422Error(error)
+                : error?.response?.data?.message || 'Đã xảy ra lỗi. Vui lòng thử lại.';
+            showAlert({ type: 'error', message: msg });
         },
     });
 
-    const rejectMutation = useMutation({
-        mutationFn: (params: { orderId: number; reason: string }) =>
-            orderService.rejectCancellation(params.orderId, params.reason),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            Alert.alert('Thành công', 'Đã từ chối yêu cầu hủy đơn hàng');
-        },
-        onError: (error: any) => {
-            Alert.alert('Lỗi', error.response?.data?.message || 'Không thể từ chối yêu cầu');
-        },
-    });
+    // ── Handlers ─────────────────────────────────────────────────────────────
 
-    const handleOrderPress = useCallback((order: Order) => {
-        navigation.navigate('OrderDetail', { orderId: order.id });
-    }, [navigation]);
-
-    const handleApprove = useCallback((order: Order) => {
-        Alert.alert(
-            'Duyệt hủy đơn',
-            `Bạn có chắc chắn muốn duyệt hủy đơn hàng #${order.order_code}?`,
-            [
+    const handleApprove = useCallback((item: PendingCancelItem) => {
+        showAlert({
+            type: 'confirm',
+            title: 'Duyệt hủy',
+            message: `Duyệt hủy "${item.ten_mat_hang}" – ${item.ten_ban}?`,
+            buttons: [
                 { text: 'Không', style: 'cancel' },
                 {
                     text: 'Duyệt',
-                    style: 'destructive',
-                    onPress: () => approveMutation.mutate(order.id),
-                },
-            ]
-        );
-    }, [approveMutation]);
-
-    const handleReject = useCallback((order: Order) => {
-        alertPrompt(
-            'Từ chối hủy đơn',
-            'Vui lòng nhập lý do từ chối yêu cầu hủy đơn',
-            [
-                { text: 'Hủy bỏ', style: 'cancel' },
-                {
-                    text: 'Xác nhận',
-                    onPress: (reason) => {
-                        if (reason?.trim()) {
-                            rejectMutation.mutate({
-                                orderId: order.id,
-                                reason: reason.trim(),
-                            });
-                        } else {
-                            Alert.alert('Lỗi', 'Vui lòng nhập lý do từ chối');
-                        }
-                    },
+                    style: 'default',
+                    onPress: () => actionMutation.mutate({ id_chi_tiet: item.id, type: 2 }),
                 },
             ],
-            'plain-text'
+        });
+    }, [actionMutation, showAlert]);
+
+    const handleReject = useCallback((item: PendingCancelItem) => {
+        showAlert({
+            type: 'confirm',
+            title: 'Từ chối hủy',
+            message: `Từ chối hủy "${item.ten_mat_hang}" – ${item.ten_ban}?`,
+            buttons: [
+                { text: 'Không', style: 'cancel' },
+                {
+                    text: 'Từ chối',
+                    style: 'destructive',
+                    onPress: () => actionMutation.mutate({ id_chi_tiet: item.id, type: -1 }),
+                },
+            ],
+        });
+    }, [actionMutation, showAlert]);
+
+    // ── Render helpers ────────────────────────────────────────────────────────
+
+    const renderEmptyState = useCallback(() => {
+        const config = {
+            pending:  { icon: 'check-decagram-outline', color: theme.colors.success,       title: 'Tất cả đã xử lý',          sub: 'Không có yêu cầu hủy nào đang chờ duyệt.' },
+            approved: { icon: 'check-circle-outline',   color: theme.colors.primary,        title: 'Chưa có dữ liệu',           sub: 'Chưa có yêu cầu hủy nào được duyệt.' },
+            rejected: { icon: 'close-circle-outline',   color: theme.colors.textSecondary,  title: 'Chưa có dữ liệu',           sub: 'Chưa có yêu cầu hủy nào bị từ chối.' },
+        }[activeTab];
+
+        return (
+            <View style={styles.emptyContainer}>
+                <Icon name={config.icon} size={72} color={config.color} />
+                <Text style={styles.emptyTitle}>{config.title}</Text>
+                <Text style={styles.emptySubtitle}>{config.sub}</Text>
+            </View>
         );
-    }, [rejectMutation]);
+    }, [activeTab]);
 
-    const renderEmptyState = () => (
-        <View style={styles.emptyContainer}>
-            <Icon name="check-decagram-outline" size={80} color={theme.colors.success} />
-            <Text style={styles.emptyTitle}>Tất cả đã xử lý</Text>
-            <Text style={styles.emptySubtitle}>
-                Tuyệt vời! Không có yêu cầu hủy đơn nào đang chờ duyệt.
-            </Text>
-        </View>
-    );
-
-    const renderApprovalCard = useCallback(
-        ({ item, index }: { item: Order; index: number }) => (
-            <Animated.View entering={FadeInDown.delay(index * 50).duration(300)}>
+    const renderPendingCard = useCallback(
+        ({ item, index }: { item: PendingCancelItem; index: number }) => (
+            <Animated.View entering={FadeInDown.delay(index * 40).duration(280)}>
                 <ApprovalCard
-                    order={item}
-                    onPress={() => handleOrderPress(item)}
+                    item={item}
                     onApprove={() => handleApprove(item)}
                     onReject={() => handleReject(item)}
                 />
             </Animated.View>
         ),
-        [handleOrderPress, handleApprove, handleReject]
+        [handleApprove, handleReject],
     );
 
-    if (isLoading && !isRefetching) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Duyệt yêu cầu</Text>
-                </View>
+    const renderResolvedCard = useCallback(
+        ({ item, index }: { item: PendingCancelItem; index: number }) => (
+            <Animated.View entering={FadeInDown.delay(index * 40).duration(280)}>
+                <ResolvedCard item={item} />
+            </Animated.View>
+        ),
+        [],
+    );
+
+    // ── List content ──────────────────────────────────────────────────────────
+
+    const renderListContent = () => {
+        if (activeQuery.isLoading && !activeQuery.isRefetching) {
+            return (
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={theme.colors.primary} />
-                    <Text style={styles.loadingText}>Đang tải danh sách chờ duyệt...</Text>
+                    <Text style={styles.loadingText}>Đang tải...</Text>
                 </View>
-            </SafeAreaView>
-        );
-    }
+            );
+        }
 
-    if (isError) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Duyệt yêu cầu</Text>
-                </View>
+        if (activeQuery.isError) {
+            return (
                 <View style={styles.errorContainer}>
-                    <Icon name="alert-circle-outline" size={64} color={theme.colors.error} />
+                    <Icon name="alert-circle-outline" size={56} color={theme.colors.error} />
                     <Text style={styles.errorTitle}>Lỗi kết nối</Text>
-                    <Text style={styles.errorSubtitle}>Không thể tải danh sách chờ duyệt</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
-                        <Icon name="refresh" size={20} color={theme.colors.white} />
+                    <Text style={styles.errorSubtitle}>Không thể tải dữ liệu</Text>
+                    <TouchableOpacity
+                        style={styles.retryButton}
+                        onPress={() => activeQuery.refetch()}
+                    >
+                        <Icon name="refresh" size={18} color={theme.colors.white} />
                         <Text style={styles.retryButtonText}>Thử lại</Text>
                     </TouchableOpacity>
                 </View>
-            </SafeAreaView>
-        );
-    }
+            );
+        }
 
-    return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Duyệt yêu cầu</Text>
-                <View style={styles.badgeContainer}>
-                    <Text style={styles.badgeText}>{orders.length}</Text>
-                </View>
-            </View>
-
+        return (
             <FlatList
-                data={orders}
-                renderItem={renderApprovalCard}
+                data={activeItems}
+                renderItem={activeTab === 'pending' ? renderPendingCard : renderResolvedCard}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={[
                     styles.listContent,
-                    orders.length === 0 && styles.listContentEmpty,
+                    activeItems.length === 0 && styles.listContentEmpty,
                 ]}
                 ListEmptyComponent={renderEmptyState}
                 refreshControl={
                     <RefreshControl
-                        refreshing={isRefetching}
-                        onRefresh={() => refetch()}
+                        refreshing={activeQuery.isRefetching}
+                        onRefresh={() => activeQuery.refetch()}
                         colors={[theme.colors.primary]}
                         tintColor={theme.colors.primary}
                         title="Đang tải..."
@@ -201,63 +238,200 @@ const HomeScreen: React.FC = () => {
                 }
                 showsVerticalScrollIndicator={false}
             />
+        );
+    };
+
+    // ── JSX ───────────────────────────────────────────────────────────────────
+
+    return (
+        <SafeAreaView style={styles.container}>
+            {/* Header + Tabs */}
+            <View style={styles.headerBlock}>
+                {/* Top row */}
+                <View style={styles.headerRow}>
+                    <View style={styles.headerLeft}>
+                        <Icon name="clipboard-check-outline" size={22} color="rgba(255,255,255,0.85)" />
+                        <View>
+                            <Text style={styles.headerTitle}>Duyệt yêu cầu</Text>
+                            <Text style={styles.headerSubtitle}>
+                                {pendingItems.length > 0
+                                    ? `${pendingItems.length} yêu cầu đang chờ`
+                                    : 'Không có yêu cầu mới'}
+                            </Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity
+                        style={styles.refreshButton}
+                        onPress={() => activeQuery.refetch()}
+                        activeOpacity={0.7}
+                        disabled={activeQuery.isRefetching}
+                    >
+                        <Icon
+                            name="refresh"
+                            size={20}
+                            color={activeQuery.isRefetching
+                                ? 'rgba(255,255,255,0.35)'
+                                : theme.colors.white}
+                        />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Segment tabs */}
+                <View style={styles.tabContainer}>
+                    {TABS.map((tab) => {
+                        const isActive = activeTab === tab.key;
+                        const showCount = tab.key === 'pending' && pendingItems.length > 0;
+                        return (
+                            <TouchableOpacity
+                                key={tab.key}
+                                style={[styles.tabItem, isActive && styles.tabItemActive]}
+                                onPress={() => setActiveTab(tab.key)}
+                                activeOpacity={0.75}
+                            >
+                                <Icon
+                                    name={tab.icon}
+                                    size={14}
+                                    color={isActive ? theme.colors.primary : 'rgba(255,255,255,0.6)'}
+                                />
+                                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                                    {tab.label}
+                                </Text>
+                                {showCount && (
+                                    <View style={styles.tabBadge}>
+                                        <Text style={styles.tabBadgeText}>{pendingItems.length}</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </View>
+
+            {/* List */}
+            {renderListContent()}
+
+            <CustomAlert
+                visible={alertState.visible}
+                type={alertState.type}
+                title={alertState.title}
+                message={alertState.message}
+                buttons={alertState.buttons}
+                onDismiss={hideAlert}
+            />
         </SafeAreaView>
     );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.md,
+
+    // Header block (header + tabs unified)
+    headerBlock: {
         backgroundColor: theme.colors.primary,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        paddingTop: SPACING.md,
+        paddingBottom: SPACING.lg,
+        paddingHorizontal: SPACING.lg,
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
+        gap: SPACING.md,
         ...Platform.select({
             ios: {
                 shadowColor: theme.colors.primary,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
             },
-            android: {
-                elevation: 8,
-            },
+            android: { elevation: 8 },
         }),
-        marginBottom: SPACING.md,
+    },
+    headerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    headerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.md,
+        flex: 1,
     },
     headerTitle: {
-        fontSize: FONT_SIZE['2xl'],
+        fontSize: FONT_SIZE.xl,
         fontWeight: '800',
         color: theme.colors.white,
+        letterSpacing: 0.2,
     },
-    badgeContainer: {
-        backgroundColor: theme.colors.white,
-        borderRadius: 12,
-        minWidth: 24,
-        height: 24,
+    headerSubtitle: {
+        fontSize: FONT_SIZE.xs,
+        color: 'rgba(255,255,255,0.65)',
+        marginTop: 2,
+    },
+    refreshButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.15)',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 8,
-        marginLeft: SPACING.sm,
     },
-    badgeText: {
-        color: theme.colors.primary,
+
+    // Segment tabs (inside header block)
+    tabContainer: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(0,0,0,0.18)',
+        borderRadius: BORDER_RADIUS.lg,
+        padding: 3,
+    },
+    tabItem: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 9,
+        borderRadius: BORDER_RADIUS.md,
+        gap: 4,
+    },
+    tabItemActive: {
+        backgroundColor: theme.colors.white,
+    },
+    tabLabel: {
         fontSize: FONT_SIZE.xs,
+        fontWeight: '600',
+        color: 'rgba(255,255,255,0.65)',
+    },
+    tabLabelActive: {
+        color: theme.colors.primary,
+    },
+    tabBadge: {
+        backgroundColor: theme.colors.warning,
+        borderRadius: 8,
+        minWidth: 16,
+        height: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+    },
+    tabBadgeText: {
+        color: theme.colors.white,
+        fontSize: 9,
         fontWeight: '800',
     },
+
+    // List
     listContent: {
-        paddingVertical: SPACING.sm,
-        paddingBottom: 20,
+        paddingTop: SPACING.xs,
+        paddingBottom: 24,
     },
     listContentEmpty: {
         flex: 1,
     },
+
+    // Loading
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -268,6 +442,8 @@ const styles = StyleSheet.create({
         fontSize: FONT_SIZE.md,
         color: theme.colors.textSecondary,
     },
+
+    // Error
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -293,27 +469,29 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.primary,
         paddingVertical: SPACING.md,
         paddingHorizontal: SPACING.xl,
-        borderRadius: 8,
-        marginTop: SPACING.md,
+        borderRadius: 10,
+        marginTop: SPACING.sm,
     },
     retryButtonText: {
         fontSize: FONT_SIZE.md,
         fontWeight: '600',
         color: theme.colors.white,
     },
+
+    // Empty
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: SPACING.xl,
         gap: SPACING.md,
-        marginTop: SPACING['3xl'] * 2,
+        marginTop: 80,
     },
     emptyTitle: {
         fontSize: FONT_SIZE.xl,
         fontWeight: '700',
         color: theme.colors.text,
-        marginTop: SPACING.lg,
+        marginTop: SPACING.md,
     },
     emptySubtitle: {
         fontSize: FONT_SIZE.md,

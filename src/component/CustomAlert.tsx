@@ -7,10 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Animated,
-  Platform,
-  Image,
 } from 'react-native';
-import LottieView from 'lottie-react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '../theme/colors';
 
@@ -29,11 +26,49 @@ interface CustomAlertProps {
   message?: string;
   buttons?: AlertButton[];
   onDismiss?: () => void;
-  customAnimation?: any;
-  showAnimation?: boolean;
 }
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+type AlertConfig = {
+  color: string;
+  lightColor: string;
+  iconName: string;
+  defaultTitle: string;
+};
+
+const ALERT_CONFIGS: Record<AlertType, AlertConfig> = {
+  success: {
+    color: theme.colors.success,
+    lightColor: theme.colors.successLight,
+    iconName: 'check-circle',
+    defaultTitle: 'Thành công',
+  },
+  error: {
+    color: theme.colors.error,
+    lightColor: theme.colors.errorLight,
+    iconName: 'close-circle',
+    defaultTitle: 'Lỗi',
+  },
+  warning: {
+    color: theme.colors.warning,
+    lightColor: theme.colors.warningLight,
+    iconName: 'alert-circle',
+    defaultTitle: 'Cảnh báo',
+  },
+  confirm: {
+    color: theme.colors.primary,
+    lightColor: theme.colors.primaryLight,
+    iconName: 'help-circle',
+    defaultTitle: 'Xác nhận',
+  },
+  info: {
+    color: theme.colors.info,
+    lightColor: theme.colors.infoLight,
+    iconName: 'information',
+    defaultTitle: 'Thông báo',
+  },
+};
 
 const CustomAlert: React.FC<CustomAlertProps> = ({
   visible,
@@ -42,10 +77,8 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
   message,
   buttons = [{ text: 'OK', style: 'default' }],
   onDismiss,
-  customAnimation,
-  showAnimation = true,
 }) => {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.85)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -53,128 +86,45 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
       Animated.parallel([
         Animated.spring(scaleAnim, {
           toValue: 1,
-          tension: 50,
-          friction: 7,
+          tension: 60,
+          friction: 8,
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
           toValue: 1,
-          duration: 200,
+          duration: 180,
           useNativeDriver: true,
         }),
       ]).start();
     } else {
       Animated.parallel([
         Animated.timing(scaleAnim, {
-          toValue: 0,
-          duration: 150,
+          toValue: 0.85,
+          duration: 140,
           useNativeDriver: true,
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 150,
+          duration: 140,
           useNativeDriver: true,
         }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, scaleAnim, fadeAnim]);
 
-  const getAlertConfig = () => {
-    switch (type) {
-      case 'success':
-        return {
-          iconColor: theme.colors.success,
-          iconName: 'check-circle',
-          defaultTitle: 'Thành công',
-          animationSource: null,
-          imageSource: null, // Có thể thêm: require('../assets/animations/success.json')
-        };
-      case 'error':
-        return {
-          iconColor: theme.colors.error,
-          iconName: 'close-circle',
-          defaultTitle: 'Lỗi',
-          animationSource: null,
-          imageSource: null,
-        };
-      case 'warning':
-        return {
-          iconColor: theme.colors.warning,
-          iconName: 'alert',
-          defaultTitle: 'Cảnh báo',
-          animationSource: null, // Có thể thêm: require('../assets/animations/warning.json')
-          imageSource: null,
-        };
-      case 'confirm':
-        return {
-          iconColor: theme.colors.info,
-          iconName: 'question-circle',
-          defaultTitle: 'Xác nhận',
-          animationSource: null, 
-          imageSource: require('../assets/images/light-bulb.png'), // Có thể thêm ảnh: require('../assets/images/light-bulb.png')
-        };
-      default:
-        return {
-          iconColor: theme.colors.info,
-          iconName: 'information',
-          defaultTitle: 'Thông báo',
-          animationSource: null, // Có thể thêm: require('../assets/animations/info.json')
-          imageSource: null,
-        };
-    }
-  };
-
-  const config = getAlertConfig();
-  const animationSource = customAnimation || config.animationSource;
-  const imageSource = config.imageSource;
+  const config = ALERT_CONFIGS[type];
+  const displayTitle = title || config.defaultTitle;
 
   const handleButtonPress = (button: AlertButton) => {
-    if (button.onPress) {
-      button.onPress();
-    }
-    if (onDismiss) {
-      onDismiss();
-    }
+    button.onPress?.();
+    onDismiss?.();
   };
 
-  const getButtonStyle = (buttonStyle?: string, index?: number, total?: number) => {
-    const isIOS = Platform.OS === 'ios';
-    
-    if (total === 1) {
-      return [
-        styles.singleButton,
-        isIOS && styles.iosButton,
-        { backgroundColor: config.iconColor },
-      ];
-    }
-
-    if (total === 2) {
-      const baseStyle = [
-        styles.dualButton,
-        isIOS && styles.iosButton,
-      ];
-
-      if (buttonStyle === 'cancel') {
-        return [...baseStyle, styles.cancelButton];
-      }
-      if (buttonStyle === 'destructive') {
-        return [...baseStyle, { backgroundColor: theme.colors.error }];
-      }
-      
-      return [...baseStyle, index === total - 1 ? { backgroundColor: config.iconColor } : styles.cancelButton];
-    }
-
-    return [styles.multiButton, isIOS && styles.iosButton];
-  };
-
-  const getButtonTextStyle = (buttonStyle?: string, index?: number, total?: number) => {
-    const isIOS = Platform.OS === 'ios';
-    
-    if (buttonStyle === 'cancel' || (total === 2 && index === 0 && buttonStyle !== 'destructive')) {
-      return [styles.buttonText, isIOS && styles.iosButtonText, styles.cancelButtonText];
-    }
-    
-    return [styles.buttonText, isIOS && styles.iosButtonText];
+  const getButtonVariant = (btn: AlertButton, index: number, total: number) => {
+    if (btn.style === 'cancel') return 'ghost';
+    if (btn.style === 'destructive') return 'destructive';
+    if (total === 2 && index === 0) return 'ghost';
+    return 'primary';
   };
 
   if (!visible) return null;
@@ -189,70 +139,65 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
     >
       <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
         <Animated.View
-          style={[
-            styles.container,
-            {
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
+          style={[styles.card, { transform: [{ scale: scaleAnim }] }]}
         >
-          <View style={styles.content}>
-            {/* Animation or Icon */}
-            {showAnimation && (
-              <View style={styles.iconContainer}>
-                {imageSource ? (
-                  <Image source={imageSource} style={styles.animation} resizeMode="contain" />
-                ) : animationSource ? (
-                  <LottieView
-                    source={animationSource}
-                    autoPlay
-                    loop={false}
-                    style={styles.animation}
-                    resizeMode="contain"
-                  />
-                ) : (
-                  <View style={[styles.iconCircle, { backgroundColor: `${config.iconColor}15` }]}>
-                    <Icon 
-                      name={config.iconName} 
-                      size={52} 
-                      color={config.iconColor}
-                    />
-                  </View>
-                )}
-              </View>
-            )}
+          {/* Icon header */}
+          {/* <View style={[styles.iconWrap, { backgroundColor: config.lightColor }]}>
+            <Icon name={config.iconName} size={44} color={config.color} />
+          </View> */}
 
-            {/* Title */}
-            {title && (
-              <Text style={[styles.title, { color: config.iconColor }]}>
-                {title}
-              </Text>
-            )}
-
-            {/* Message */}
-            {message && (
+          {/* Text body */}
+          <View style={styles.body}>
+            <Text style={styles.title}>{displayTitle}</Text>
+            {message ? (
               <Text style={styles.message}>{message}</Text>
-            )}
+            ) : null}
+          </View>
 
-            {/* Buttons */}
-            <View style={[
-              styles.buttonContainer,
-              buttons.length === 2 && styles.buttonContainerRow,
-              buttons.length > 2 && styles.buttonContainerColumn,
-            ]}>
-              {buttons.map((button, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={getButtonStyle(button.style, index, buttons.length)}
-                  onPress={() => handleButtonPress(button)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={getButtonTextStyle(button.style, index, buttons.length)}>
-                    {button.text}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          {/* Divider */}
+          <View style={styles.divider} />
+
+          {/* Buttons */}
+          <View style={[
+            styles.buttonRow,
+            buttons.length > 2 && styles.buttonColumn,
+          ]}>
+            {buttons.map((btn, idx) => {
+              const variant = getButtonVariant(btn, idx, buttons.length);
+              const isLast = idx === buttons.length - 1;
+
+              return (
+                <React.Fragment key={idx}>
+                  <TouchableOpacity
+                    style={[
+                      styles.btn,
+                      buttons.length === 1 && styles.btnFull,
+                      variant === 'ghost' && styles.btnGhost,
+                      variant === 'primary' && [styles.btnFilled, { backgroundColor: config.color }],
+                      variant === 'destructive' && [styles.btnFilled, { backgroundColor: theme.colors.error }],
+                    ]}
+                    onPress={() => handleButtonPress(btn)}
+                    activeOpacity={0.75}
+                  >
+                    <Text
+                      style={[
+                        styles.btnText,
+                        variant === 'ghost' && styles.btnTextGhost,
+                        variant === 'primary' && styles.btnTextFilled,
+                        variant === 'destructive' && styles.btnTextFilled,
+                      ]}
+                    >
+                      {btn.text}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Vertical separator between 2 buttons */}
+                  {buttons.length === 2 && !isLast && (
+                    <View style={styles.btnSeparator} />
+                  )}
+                </React.Fragment>
+              );
+            })}
           </View>
         </Animated.View>
       </Animated.View>
@@ -263,122 +208,92 @@ const CustomAlert: React.FC<CustomAlertProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 32,
   },
-  container: {
-    width: width * 0.85,
-    maxWidth: 340,
-    marginHorizontal: 20,
-  },
-  content: {
+  card: {
+    width: Math.min(width - 64, 320),
     backgroundColor: theme.colors.white,
-    borderRadius: Platform.OS === 'ios' ? 14 : theme.borderRadius.lg,
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.3,
-        shadowRadius: 20,
-      },
-      android: {
-        elevation: 10,
-      },
-    }),
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  iconContainer: {
-    marginBottom: theme.spacing.md,
+  iconWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 28,
   },
-  animation: {
-    width: 80,
-    height: 80,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  body: {
+    marginTop: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: {
-    fontSize: 48,
-    fontWeight: 'bold',
   },
   title: {
-    fontSize: Platform.OS === 'ios' ? 18 : theme.typography.fontSize.lg,
-    fontWeight: Platform.OS === 'ios' ? '600' : 'bold',
-    marginBottom: theme.spacing.xs,
+    fontSize: 17,
+    fontWeight: '700',
+    color: theme.colors.text,
     textAlign: 'center',
-    fontFamily: Platform.OS === 'ios' ? undefined : theme.typography.fontFamily,
+    marginBottom: 6,
   },
   message: {
-    fontSize: Platform.OS === 'ios' ? 14 : theme.typography.fontSize.md,
-    color: theme.colors.textLight,
+    fontSize: 14,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
-    marginBottom: theme.spacing.lg,
     lineHeight: 20,
-    fontFamily: Platform.OS === 'ios' ? undefined : theme.typography.fontFamily,
   },
-  buttonContainer: {
-    width: '100%',
-    gap: theme.spacing.sm,
+  divider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
   },
-  buttonContainerRow: {
+  buttonRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    minHeight: 50,
   },
-  buttonContainerColumn: {
+  buttonColumn: {
     flexDirection: 'column',
+    padding: 12,
+    gap: 8,
   },
-  singleButton: {
-    width: '100%',
-    paddingVertical: Platform.OS === 'ios' ? 12 : theme.spacing.md,
-    borderRadius: Platform.OS === 'ios' ? 10 : theme.borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dualButton: {
+  btn: {
     flex: 1,
-    paddingVertical: Platform.OS === 'ios' ? 12 : theme.spacing.md,
-    borderRadius: Platform.OS === 'ios' ? 10 : theme.borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
   },
-  multiButton: {
-    width: '100%',
-    paddingVertical: Platform.OS === 'ios' ? 12 : theme.spacing.md,
-    borderRadius: Platform.OS === 'ios' ? 10 : theme.borderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
+  btnFull: {
+    flex: 1,
   },
-  cancelButton: {
-    backgroundColor: theme.colors.textLight, // #181A20 - Đen xám
+  btnGhost: {
+    backgroundColor: theme.colors.white,
   },
-  iosButton: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  btnFilled: {
+    margin: 12,
+    borderRadius: 12,
+    flex: 1,
+    paddingVertical: 12,
   },
-  buttonText: {
-    fontSize: Platform.OS === 'ios' ? 17 : theme.typography.fontSize.md,
-    fontWeight: Platform.OS === 'ios' ? '600' : '700',
-    color: theme.colors.white,
-    fontFamily: Platform.OS === 'ios' ? undefined : theme.typography.fontFamily,
+  btnSeparator: {
+    width: 1,
+    backgroundColor: theme.colors.border,
+    alignSelf: 'stretch',
   },
-  iosButtonText: {
+  btnText: {
+    fontSize: 15,
     fontWeight: '600',
   },
-  cancelButtonText: {
-    color: theme.colors.white, // Text trắng trên background đen xám
+  btnTextGhost: {
+    color: theme.colors.textSecondary,
+  },
+  btnTextFilled: {
+    color: theme.colors.white,
   },
 });
 
 export default CustomAlert;
-

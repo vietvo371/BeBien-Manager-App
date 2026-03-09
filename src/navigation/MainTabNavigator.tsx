@@ -68,9 +68,9 @@ const MainTabs = () => {
           name="Home"
           component={HomeScreen}
           options={{
-            title: 'Trang chủ',
+            title: 'Duyệt huỷ',
             tabBarIcon: ({ color }) => (
-              <Icon name="home-variant" size={TAB_BAR.iconSize} color={color} />
+              <Icon name="clipboard-check-outline" size={TAB_BAR.iconSize} color={color} />
             ),
           }}
         />
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
 const MainNavigator = () => {
   return (
     <Stack.Navigator
-      initialRouteName="Loading"
+      initialRouteName="MainTabs"
       screenOptions={{
         headerShown: false,
         animation: 'slide_from_right',

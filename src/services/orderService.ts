@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosInstance } from 'axios';
 import env from '../config/env';
+import api from '../utils/Api';
 import {
   Order,
   OrdersResponse,
@@ -9,6 +10,11 @@ import {
   CancelOrderResponse,
   OrderFilters,
   OrderStatus,
+  PendingCancelItem,
+  PendingCancelResponse,
+  ApproveCancelResponse,
+  ActionDuyetRequest,
+  ActionDuyetResponse,
 } from '../types/order.types';
 import { generateMockOrders } from '../utils/mockOrderData';
 
@@ -242,6 +248,56 @@ class OrderService {
     const response = await this.api.post<CancelOrderResponse>(
       `/orders/${orderId}/cancel/reject`,
       { reason }
+    );
+    return response.data;
+  }
+
+  async getPendingCancelItems(): Promise<PendingCancelItem[]> {
+    const response = await api.get<PendingCancelResponse>(
+      '/nguoi-kiem-duyet/data-chua-duyet'
+    );
+    console.log(' getPendingCancelItems nguoi-kiem-duyet/data-chua-duyet');
+    console.log('response', response);
+    return response.data.data;
+  }
+
+  async getResolvedCancelItems(type: 2 | -1): Promise<PendingCancelItem[]> {
+    const response = await api.post<PendingCancelResponse>(
+      '/nguoi-kiem-duyet/data-da-duyet-tu-choi',
+      { type }
+    );
+    return response.data.data;
+  }
+
+  async approveCancelItem(itemId: number): Promise<ApproveCancelResponse> {
+    const response = await api.post<ApproveCancelResponse>(
+      `/nguoi-kiem-duyet/duyet-huy/${itemId}`
+    );
+    console.log(' approveCancelItem nguoi-kiem-duyet/duyet-huy/${itemId}', itemId);
+    console.log('response', response);
+    return response.data;
+  }
+
+  async rejectCancelItem(itemId: number, reason: string): Promise<ApproveCancelResponse> {
+    const response = await api.post<ApproveCancelResponse>(
+      `/nguoi-kiem-duyet/tu-choi-huy/${itemId}`,
+      { reason }
+    );
+    console.log(' rejectCancelItem nguoi-kiem-duyet/tu-choi-huy/${itemId} ${reason}', itemId, reason);
+    console.log('response', response);
+    return response.data;
+  }
+
+  /**
+   * Duyệt hoặc từ chối yêu cầu hủy món (unified endpoint).
+   * type = 2  → duyệt xóa
+   * type = -1 → từ chối xóa
+   * Throws 422 ValidationError nếu id_chi_tiet thiếu / không hợp lệ.
+   */
+  async actionDuyet(request: ActionDuyetRequest): Promise<ActionDuyetResponse> {
+    const response = await api.post<ActionDuyetResponse>(
+      '/nguoi-kiem-duyet/action-duyet',
+      request
     );
     return response.data;
   }

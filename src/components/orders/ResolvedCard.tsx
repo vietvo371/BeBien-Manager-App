@@ -1,25 +1,32 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-} from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
+import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { PendingCancelItem } from '../../types/order.types';
 
-interface ApprovalCardProps {
+interface ResolvedCardProps {
     item: PendingCancelItem;
-    onApprove: () => void;
-    onReject: () => void;
 }
 
-export const ApprovalCard: React.FC<ApprovalCardProps> = ({
-    item,
-    onApprove,
-    onReject,
-}) => {
+export const ResolvedCard: React.FC<ResolvedCardProps> = ({ item }) => {
+    const isApproved = item.is_duyet_huy === 2;
+
+    const statusConfig = isApproved
+        ? {
+              label: 'Đã duyệt xóa',
+              color: theme.colors.success,
+              bgColor: theme.colors.successLight,
+              iconName: 'check-circle-outline',
+              accentColor: theme.colors.success,
+          }
+        : {
+              label: 'Đã từ chối',
+              color: theme.colors.error,
+              bgColor: theme.colors.errorLight,
+              iconName: 'close-circle-outline',
+              accentColor: theme.colors.error,
+          };
+
     const formatCurrency = (value: string | number): string => {
         const amount = typeof value === 'string' ? parseFloat(value) : value;
         return new Intl.NumberFormat('vi-VN', {
@@ -29,40 +36,45 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
     };
 
     return (
-        <View style={styles.card}>
+        <View style={[styles.card, { borderLeftColor: statusConfig.accentColor }]}>
+            {/* Header */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <Text style={styles.orderCode}>#{item.ma_hoa_don}</Text>
                     <View style={styles.tableTag}>
-                        <Icon name="table-chair" size={14} color={theme.colors.primary} />
+                        <Icon name="table-chair" size={13} color={theme.colors.primary} />
                         <Text style={styles.tableText}>{item.ten_ban}</Text>
                     </View>
                 </View>
-                <View style={styles.statusBadge}>
-                    <Icon name="alert-circle" size={16} color={theme.colors.warning} />
-                    <Text style={styles.statusText}>Chờ duyệt hủy</Text>
+                <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
+                    <Icon name={statusConfig.iconName} size={14} color={statusConfig.color} />
+                    <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                        {statusConfig.label}
+                    </Text>
                 </View>
             </View>
 
+            {/* Item info */}
             <View style={styles.content}>
                 <View style={styles.infoRow}>
-                    <Icon name="food" size={18} color={theme.colors.textSecondary} />
-                    <Text style={styles.itemName}>{item.ten_mat_hang}</Text>
+                    <Icon name="food" size={16} color={theme.colors.textSecondary} />
+                    <Text style={styles.itemName} numberOfLines={1}>{item.ten_mat_hang}</Text>
                 </View>
-
                 <View style={styles.infoRow}>
-                    <Icon name="counter" size={18} color={theme.colors.textSecondary} />
+                    <Icon name="counter" size={16} color={theme.colors.textSecondary} />
                     <Text style={styles.infoText}>
                         SL: {item.so_luong} × {formatCurrency(item.don_gia)}
                     </Text>
                 </View>
-
-                {/* <View style={styles.infoRow}>
-                    <Icon name="account-tie" size={18} color={theme.colors.textSecondary} />
-                    <Text style={styles.infoText}>{item.ten_nhan_vien_order}</Text>
-                </View> */}
+                <View style={styles.infoRow}>
+                    <Icon name="account-outline" size={16} color={theme.colors.textSecondary} />
+                    <Text style={styles.infoText} numberOfLines={1}>
+                        {item.ten_nhan_vien_order}
+                    </Text>
+                </View>
             </View>
 
+            {/* Note */}
             {item.ghi_chu ? (
                 <View style={styles.noteContainer}>
                     <Text style={styles.noteLabel}>Ghi chú:</Text>
@@ -70,29 +82,12 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
                 </View>
             ) : null}
 
+            {/* Footer */}
             <View style={styles.footer}>
-                <Text style={styles.totalLabel}>Thành tiền:</Text>
-                <Text style={styles.totalAmount}>{formatCurrency(item.thanh_tien)}</Text>
-            </View>
-
-            <View style={styles.actionContainer}>
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.rejectButton]}
-                    onPress={onReject}
-                    activeOpacity={0.8}
-                >
-                    <Icon name="close" size={20} color={theme.colors.error} />
-                    <Text style={styles.rejectText}>Từ chối</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.approveButton]}
-                    onPress={onApprove}
-                    activeOpacity={0.8}
-                >
-                    <Icon name="check" size={20} color={theme.colors.white} />
-                    <Text style={styles.approveText}>Duyệt hủy</Text>
-                </TouchableOpacity>
+                <Text style={styles.totalLabel}>Thành tiền</Text>
+                <Text style={[styles.totalAmount, { color: statusConfig.accentColor }]}>
+                    {formatCurrency(item.thanh_tien)}
+                </Text>
             </View>
         </View>
     );
@@ -105,6 +100,7 @@ const styles = StyleSheet.create({
         padding: SPACING.lg,
         marginHorizontal: SPACING.lg,
         marginVertical: SPACING.sm,
+        borderLeftWidth: 4,
         ...theme.shadows.sm,
     },
     header: {
@@ -120,7 +116,7 @@ const styles = StyleSheet.create({
         gap: SPACING.sm,
     },
     orderCode: {
-        fontSize: FONT_SIZE.lg,
+        fontSize: FONT_SIZE.md,
         fontWeight: '700',
         color: theme.colors.text,
     },
@@ -129,9 +125,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: theme.colors.primaryLight,
         paddingHorizontal: SPACING.sm,
-        paddingVertical: SPACING.xs,
+        paddingVertical: 2,
         borderRadius: BORDER_RADIUS.sm,
-        gap: 4,
+        gap: 3,
     },
     tableText: {
         fontSize: FONT_SIZE.xs,
@@ -141,7 +137,6 @@ const styles = StyleSheet.create({
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.colors.warningLight + '30',
         paddingHorizontal: SPACING.sm,
         paddingVertical: SPACING.xs,
         borderRadius: BORDER_RADIUS.md,
@@ -149,11 +144,10 @@ const styles = StyleSheet.create({
     },
     statusText: {
         fontSize: FONT_SIZE.xs,
-        fontWeight: '600',
-        color: theme.colors.warning,
+        fontWeight: '700',
     },
     content: {
-        gap: SPACING.sm,
+        gap: SPACING.xs,
         marginBottom: SPACING.md,
     },
     infoRow: {
@@ -183,8 +177,8 @@ const styles = StyleSheet.create({
     noteLabel: {
         fontSize: FONT_SIZE.xs,
         color: theme.colors.textSecondary,
-        marginBottom: 2,
         fontWeight: '500',
+        marginBottom: 2,
     },
     noteText: {
         fontSize: FONT_SIZE.sm,
@@ -198,47 +192,14 @@ const styles = StyleSheet.create({
         paddingTop: SPACING.md,
         borderTopWidth: 1,
         borderTopColor: theme.colors.border,
-        marginBottom: SPACING.md,
     },
     totalLabel: {
-        fontSize: FONT_SIZE.md,
+        fontSize: FONT_SIZE.sm,
         color: theme.colors.textSecondary,
         fontWeight: '500',
     },
     totalAmount: {
-        fontSize: FONT_SIZE.xl,
+        fontSize: FONT_SIZE.lg,
         fontWeight: '700',
-        color: theme.colors.primary,
-    },
-    actionContainer: {
-        flexDirection: 'row',
-        gap: SPACING.md,
-    },
-    actionButton: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: BUTTON_HEIGHT.md,
-        borderRadius: BORDER_RADIUS.md,
-        gap: SPACING.sm,
-    },
-    rejectButton: {
-        backgroundColor: theme.colors.card,
-        borderWidth: 1,
-        borderColor: theme.colors.error,
-    },
-    approveButton: {
-        backgroundColor: theme.colors.success,
-    },
-    rejectText: {
-        fontSize: FONT_SIZE.md,
-        fontWeight: '600',
-        color: theme.colors.error,
-    },
-    approveText: {
-        fontSize: FONT_SIZE.md,
-        fontWeight: '600',
-        color: theme.colors.white,
     },
 });
