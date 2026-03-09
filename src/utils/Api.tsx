@@ -65,9 +65,6 @@ const getCurrentLocation = async (): Promise<LocationData | null> => {
   if (cachedLocation && (now - locationCacheTime) < LOCATION_CACHE_DURATION) {
     return cachedLocation;
   }
-
-  // Ở bản ERP, không yêu cầu lấy GPS thật từ thiết bị.
-  // Nếu sau này cần lại, có thể tái tích hợp LocationService giống mimo_fe.
   cachedLocation = DEFAULT_LOCATION;
   locationCacheTime = now;
 
@@ -94,7 +91,8 @@ api.interceptors.request.use(async (config) => {
   const token = await getToken();
   console.log('language', i18n.language);
   config.headers['x-Language'] = i18n.language || 'vi';
-
+  console.log('config', config);
+  console.log('config.headers', config.headers);
   if (token) {
     console.log('token', token);
     config.headers.Authorization = `Bearer ${token}`;
@@ -156,11 +154,13 @@ api.interceptors.response.use(
 
     // Validation error: Let form handle it
     if (error.response?.status === 422) {
+      console.log('error', error);
       return Promise.reject(error);
     }
 
     // Auth errors: Logout + Reset to Login
     if (error.response?.status === 401 || error.response?.status === 403) {
+      console.log('error', error);
       if (!isShowingAuthAlert) {
         isShowingAuthAlert = true;
 

@@ -1,5 +1,5 @@
 /**
- * WISEENGLISH ERP - Production Environment Configuration
+ * BeBien Manager - Production Environment Configuration
  * 
  * Cấu hình cho môi trường Production (Live/Real Users)
  */
@@ -10,16 +10,16 @@ export const IS_STAGING = false;
 export const IS_DEVELOPMENT = false;
 
 // API Configuration
-export const API_URL = 'https://lmswise.dzfullstack.com'; // Production API
+export const API_URL = 'https://bebien.dzfullstackmid.io.vn'; // Production API
 
 // Firebase Configuration (Production)
 export const FIREBASE = {
-  API_KEY: 'AIzaSyDSYbflon0akCd4_hqM_lyAcR8Xi79J0a4',
-  AUTH_DOMAIN: 'wiseenglish-erp.firebaseapp.com',
-  PROJECT_ID: 'wiseenglish-erp',
-  STORAGE_BUCKET: 'wiseenglish-erp.firebasestorage.app',
-  MESSAGING_SENDER_ID: '1074103384268',
-  APP_ID: '1:1074103384268:android:eaf51e50644f4d499eaa69',
+  API_KEY: 'AIzaSyCEkXCRwro2wFWj7ssseZvZt7zR-cTOrPw',
+  AUTH_DOMAIN: 'bebien-manager.firebaseapp.com',
+  PROJECT_ID: 'bebien-manager',
+  STORAGE_BUCKET: 'bebien-manager.firebasestorage.app',
+  MESSAGING_SENDER_ID: '301053868302',
+  APP_ID: '1:301053868302:ios:498b3be546e0f4aa473f5f',
 };
 
 // App Configuration

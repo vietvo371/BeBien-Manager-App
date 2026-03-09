@@ -9,24 +9,8 @@ import { handleApiError } from './errorHandler';
 // ============================================================================
 
 export interface User {
-  id: number;
-  name: string;
-  full_name?: string;
-  email?: string;
-  phone?: string;
-  avatar?: string;
-  role?: string;
-  is_master?: number; // 0 = Cashier, 1 = Manager
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface SignUpData {
-  email?: string;
-  phone?: string;
-  password: string;
-  fullName: string;
-  role?: string;
+  ten_nguoi_kiem_duyet: string;
+  so_dien_thoai: string;
 }
 
 export interface SignInResponse {
@@ -36,11 +20,9 @@ export interface SignInResponse {
 
 export interface LoginResponse {
   status: boolean;
-  data: {
-    token: string;
-    student?: User;
-  };
-  message?: string;
+  token: string;
+  ten_nguoi_kiem_duyet: string;
+  so_dien_thoai: string;
 }
 
 export interface ApiResponse<T = any> {
@@ -65,6 +47,9 @@ const createApiClient = (): AxiosInstance => {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
+    // Cho phép tất cả HTTP status đi vào response (không throw error cho 4xx)
+    // Fix lỗi React Native New Architecture không populate error.response đúng cách
+    validateStatus: () => true,
   });
 
   // Request interceptor: Add Bearer token
@@ -80,26 +65,7 @@ const createApiClient = (): AxiosInstance => {
     (error) => Promise.reject(error)
   );
 
-  // Response interceptor: Handle Laravel error format and show user-friendly errors
-  api.interceptors.response.use(
-    (response) => response,
-    (error) => {
-      if (error.response?.data) {
-        // Laravel error format: { status: 'error', message: '...', errors: {...} }
-        const { message, errors } = error.response.data;
-        error.message = message || 'An error occurred';
-        error.validationErrors = errors;
-      }
-
-      // Handle errors with modal (except 401/403 which are handled by main Api.tsx)
-      const status = error.response?.status;
-      if (status !== 401 && status !== 403 && status !== 422) {
-        handleApiError(error, true); // ✅ Auto show modal for errors
-      }
-
-      return Promise.reject(error);
-    }
-  );
+  // Không cần response interceptor error — validateStatus: () => true xử lý tất cả
 
   return api;
 };
@@ -125,92 +91,61 @@ class AuthApiService {
   // STUDENT AUTH
   // ==========================================================================
 
-  /**
-   * Sign in user with Laravel Sanctum
-   * POST /api/student/login
-   */
-  async signIn(login: string, password: string): Promise<SignInResponse> {
-    try {
-      const response = await this.api.post('/login', {
-        login,
-        password,
-      });
+  async signIn(soDienThoai: string, password: string): Promise<SignInResponse> {
+    console.log('[signIn] POST /api/nguoi-kiem-duyet/login', { soDienThoai: soDienThoai, password: password });
 
-      // Actual API format: { status: true, data: { token: "...", student: {...} } }
-      if (response.data.status === true && response.data.data) {
-        const { token, student } = response.data.data;
+    const response = await this.api.post('/nguoi-kiem-duyet/login', {
+      so_dien_thoai: soDienThoai,
+      password,
+    });
 
-        // Save tokens and user data
-        await this.saveToken(token);
-        await this.saveUser(student);
+    console.log('[signIn] status:', response.status, 'data:', response.data);
 
-        return { user: student, token };
-      }
+    const { status: httpStatus, data } = response;
 
-      throw new Error(response.data.message || 'Login failed');
-    } catch (error: any) {
-      console.error('Sign in error:', error);
-
-      // Show user-friendly error for login failures
-      if (error.response?.status === 422 || error.response?.status === 401) {
-        ErrorModalManager.showError(
-          'Đăng nhập thất bại',
-          error.message || 'Tên đăng nhập hoặc mật khẩu không đúng'
-        );
-      } else {
-        handleApiError(error, true);
-      }
-
-      throw error;
+    if (httpStatus === 200 && data?.status === true && data?.token) {
+      const user: User = {
+        ten_nguoi_kiem_duyet: data.ten_nguoi_kiem_duyet,
+        so_dien_thoai: data.so_dien_thoai,
+      };
+      await this.saveToken(data.token);
+      await this.saveUser(user);
+      console.log('[signIn] ✅ success:', user.ten_nguoi_kiem_duyet);
+      return { user, token: data.token };
     }
+
+    if (httpStatus === 422 || httpStatus === 401) {
+      const message =
+        data?.message ||
+        data?.errors?.so_dien_thoai?.[0] ||
+        'Số điện thoại hoặc mật khẩu không đúng';
+      console.warn('[signIn] 422/401:', message);
+      ErrorModalManager.showError('Đăng nhập thất bại', message);
+      throw new Error(message);
+    }
+
+    const serverMessage = data?.message || 'Đăng nhập thất bại';
+    console.error('[signIn] server error:', httpStatus, serverMessage);
+    ErrorModalManager.showError('Lỗi máy chủ', serverMessage);
+    throw new Error(serverMessage);
   }
 
   /**
-   * Sign out user
-   * POST /api/student/logout
+   * Sign out user — clear local storage (no server endpoint)
    */
   async signOut(): Promise<void> {
     try {
-      // Call backend to invalidate token
-      await this.api.post('/logout');
-    } catch (error) {
-      console.error('Sign out error:', error);
-      // Continue to clear local storage even if API call fails
+      await this.api.post('/nguoi-kiem-duyet/logout').catch(() => {});
     } finally {
-      // Clear local storage
       await AsyncStorage.multiRemove([this.TOKEN_KEY, this.USER_KEY]);
     }
   }
 
-
   /**
-   * Get current user info
-   * GET /api/student/me
+   * Get current user from local storage
    */
   async getCurrentUser(): Promise<User | null> {
-    try {
-      const response = await this.api.get('/me');
-
-      // Actual API format: { status: true, data: { student: {...} } }
-      if (response.data.status === true && response.data.data?.student) {
-        const user = response.data.data.student;
-        await this.saveUser(user);
-        return user;
-      }
-
-      return null;
-    } catch (error: any) {
-      // Handle 401 Unauthenticated or any other errors
-      // API returns: { "message": "Unauthenticated." } with 401 status
-      if (error.response?.status === 401) {
-        console.log('User not authenticated - clearing auth data');
-        // Clear stored token and user data
-        await this.signOut();
-      } else {
-        console.error('Get current user error:', error);
-      }
-      return null;
-    }
+    return this.loadStoredUser();
   }
 
   /**
@@ -230,45 +165,7 @@ class AuthApiService {
   }
 
   /**
-   * Update user profile (placeholder - not in Student API spec)
-   */
-  async updateProfile(updates: Partial<User>): Promise<User> {
-    try {
-      // TODO: Implement when profile update endpoint is available
-      throw new Error('Profile update not implemented');
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Change password
-   * POST /api/student/change-password
-   */
-  async changePassword(newPassword: string): Promise<void> {
-    try {
-      const response = await this.api.post('/change-password', {
-        password: newPassword,
-        password_confirmation: newPassword,
-      });
-
-      // API returns: { status: true, message: "Cập nhật mật khẩu thành công", data: [] }
-      if (response.data?.status === true) {
-        console.log('Password changed successfully:', response.data.message);
-        return;
-      }
-
-      throw new Error(response.data?.message || 'Đổi mật khẩu thất bại');
-    } catch (error: any) {
-      console.error('Error changing password:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Register FCM device token for push notifications
-   * POST /api/student/device/register
    */
   async registerDevice(
     fcmToken: string,
@@ -277,19 +174,12 @@ class AuthApiService {
     deviceId: string
   ): Promise<void> {
     try {
-      const response = await this.api.post('/device/register', {
+      await this.api.post('/nguoi-kiem-duyet/device/register', {
         fcm_token: fcmToken,
         device_type: deviceType,
         device_name: deviceName,
         device_id: deviceId,
       });
-
-      if (response.data?.status === 'success') {
-        console.log('Device registered successfully');
-        return;
-      }
-
-      throw new Error(response.data?.message || 'Đăng ký thiết bị thất bại');
     } catch (error: any) {
       console.error('Error registering device:', error);
       throw error;
@@ -298,20 +188,12 @@ class AuthApiService {
 
   /**
    * Unregister FCM device token
-   * POST /api/student/device/unregister
    */
   async unregisterDevice(fcmToken: string): Promise<void> {
     try {
-      const response = await this.api.post('/device/unregister', {
+      await this.api.post('/nguoi-kiem-duyet/device/unregister', {
         fcm_token: fcmToken,
       });
-
-      if (response.data?.status === 'success') {
-        console.log('Device unregistered successfully');
-        return;
-      }
-
-      throw new Error(response.data?.message || 'Hủy đăng ký thiết bị thất bại');
     } catch (error: any) {
       console.error('Error unregistering device:', error);
       throw error;
@@ -368,36 +250,6 @@ class AuthApiService {
     }
   }
 
-  // COMMON AUTH METHODS
-  // ============================================================================
-
-  /**
-   * Check login status and role
-   * GET /api/auth/check-login
-   */
-  async checkLogin(token: string): Promise<{ is_student: boolean } | null> {
-    try {
-      const response = await axios.get(`${env.API_URL}/api/auth/check-login`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        timeout: 5000,
-      });
-      console.log('Check login response:', token);
-
-      if (response.data?.status === true && response.data?.data) {
-        return {
-          is_student: response.data.data.is_student
-        };
-      }
-      return null;
-    } catch (error) {
-      console.log('Check login error:', error);
-      return null;
-    }
-  }
 }
 
 // ============================================================================

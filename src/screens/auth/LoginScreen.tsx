@@ -50,12 +50,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const validateForm = () => {
     const newErrors: { username?: string; password?: string } = {};
 
-    // Validate username
     if (!username.trim()) {
-      newErrors.username = 'Vui lòng nhập tên đăng nhập';
+      newErrors.username = 'Vui lòng nhập số điện thoại';
+    } else if (!/^(0[3-9]\d{8})$/.test(username.trim())) {
+      newErrors.username = 'Số điện thoại không hợp lệ';
     }
 
-    // Validate password
     if (!password) {
       newErrors.password = 'Vui lòng nhập mật khẩu';
     } else if (password.length < 6) {
@@ -70,36 +70,28 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     if (!validateForm()) {
       return;
     }
-    navigation.navigate('MainTabs');
 
-    // setLoading(true);
-    // try {
-    //   // New Student API: signIn(login, password)
-    //   // login can be email OR student_id (e.g., HV-00485-TVD)
-    //   const result = await signIn(username, password);
+    setLoading(true);
+    try {
+      const result = await signIn(username.trim(), password);
 
-    //   console.log('Login result:', result);
-
-    //   if (result.success) {
-    //     // Login successful - navigate to main tabs
-    //     navigation.replace('MainTabs');
-    //   } else {
-    //     // Handle errors
-    //     if (result.errors) {
-    //       setErrors({
-    //         username: result.errors.login,
-    //         password: result.errors.password,
-    //       });
-    //     } else if (result.error) {
-    //       AlertService.error(t('auth.loginFailed'), result.error);
-    //     }
-    //   }
-    // } catch (error: any) {
-    //   console.log('Login error:', error);
-    //   AlertService.error(t('auth.loginFailed'), error.message || 'Login failed. Please try again.');
-    // } finally {
-    //   setLoading(false);
-    // }
+      if (result.success) {
+        navigation.replace('MainTabs');
+      } else {
+        if (result.errors) {
+          setErrors({
+            username: result.errors.login,
+            password: result.errors.password,
+          });
+        } else if (result.error) {
+          AlertService.error(t('auth.loginFailed'), result.error);
+        }
+      }
+    } catch (error: any) {
+      AlertService.error(t('auth.loginFailed'), error.message || 'Đăng nhập thất bại. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
@@ -186,14 +178,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
             <View style={styles.form}>
               <InputCustom
-                label="Email hoặc Mã học viên"
-                placeholder="Nhập email hoặc mã học viên"
+                label="Số điện thoại"
+                placeholder="Nhập số điện thoại"
                 value={username}
                 onChangeText={setUsername}
                 autoCapitalize="none"
+                keyboardType="phone-pad"
                 error={errors.username}
                 required
-                leftIcon="account-outline"
+                leftIcon="phone-outline"
                 containerStyle={styles.input}
               />
               <InputCustom

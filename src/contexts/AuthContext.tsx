@@ -92,28 +92,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Validate login form
-   * Returns error keys that can be translated in the UI
-   * Accepts email OR student_id (format: HV-XXXXX-XXX)
+   * Validate login form — chấp nhận số điện thoại VN
    */
   const validateLogin = (login: string, password: string): LoginValidationResult => {
     const errors: { login?: string; password?: string } = {};
 
-    // Validate login (email or student_id)
-    if (!login) {
-      errors.login = 'LOGIN_REQUIRED';
-    } else {
-      // Check if it's email format
-      const isEmail = /\S+@\S+\.\S+/.test(login);
-      // Check if it's student_id format (e.g., HV-00485-TVD)
-      const isStudentId = /^[A-Z]{2,3}-\d+-[A-Z]{2,4}$/i.test(login);
-
-      if (!isEmail && !isStudentId) {
-        errors.login = 'VALID_LOGIN'; // "Please enter a valid email or student ID"
-      }
+    if (!login.trim()) {
+      errors.login = 'Vui lòng nhập số điện thoại';
+    } else if (!/^(0[3-9]\d{8})$/.test(login.trim())) {
+      errors.login = 'Số điện thoại không hợp lệ';
     }
 
-    // Validate password
     if (!password) {
       errors.password = 'PASSWORD_REQUIRED';
     } else if (password.length < 6) {
@@ -127,14 +116,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Sign in user with validation and error handling
-   * Uses Laravel Student API: POST /api/student/login
+   * Sign in nguoi-kiem-duyet
+   * POST /api/nguoi-kiem-duyet/login
    */
   const signIn = async (login: string, password: string): Promise<LoginResult> => {
     try {
       console.log('Login attempt:', login);
 
-      // Call the API
       const response = await authApi.signIn(login, password);
 
       console.log('Login successful:', response.user);

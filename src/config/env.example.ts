@@ -1,5 +1,5 @@
 /**
- * WISEENGLISH ERP - Environment Configuration Template
+ * BeBien Manager - Environment Configuration Template
  * 
  * Hướng dẫn sử dụng:
  * 1. File này được tự động sinh bằng script set-env.sh
@@ -25,11 +25,11 @@ export const API_URL = 'YOUR_API_URL';
 // Firebase Configuration
 export const FIREBASE = {
   API_KEY: 'YOUR_FIREBASE_API_KEY',
-  AUTH_DOMAIN: 'YOUR_PROJECT.firebaseapp.com',
-  PROJECT_ID: 'YOUR_PROJECT_ID',
-  STORAGE_BUCKET: 'YOUR_PROJECT.appspot.com',
-  MESSAGING_SENDER_ID: 'YOUR_SENDER_ID',
-  APP_ID: 'YOUR_APP_ID',
+  AUTH_DOMAIN: 'bebien-manager.firebaseapp.com',
+  PROJECT_ID: 'bebien-manager',
+  STORAGE_BUCKET: 'bebien-manager.firebasestorage.app',
+  MESSAGING_SENDER_ID: 'YOUR_GCM_SENDER_ID',
+  APP_ID: 'YOUR_GOOGLE_APP_ID',
 };
 
 // App Configuration
