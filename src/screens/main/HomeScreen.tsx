@@ -23,7 +23,7 @@ import CustomAlert, { AlertType, AlertButton } from '../../component/CustomAlert
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type TabKey = 'pending' | 'approved' | 'rejected';
+type TabKey = 'pending' | 'rejected';
 
 interface AlertState {
     visible: boolean;
@@ -39,7 +39,6 @@ const ALERT_HIDDEN: AlertState = { visible: false, type: 'info' };
 
 const TABS: { key: TabKey; label: string; icon: string }[] = [
     { key: 'pending',  label: 'Chờ duyệt', icon: 'clock-outline' },
-    { key: 'approved', label: 'Đã duyệt',  icon: 'check-circle-outline' },
     { key: 'rejected', label: 'Từ chối',   icon: 'close-circle-outline' },
 ];
 
@@ -65,13 +64,6 @@ const HomeScreen: React.FC = () => {
         staleTime: 30000,
     });
 
-    const approvedQuery = useQuery({
-        queryKey: ['cancel-items', 'approved'],
-        queryFn: () => orderService.getResolvedCancelItems(2),
-        staleTime: 30000,
-        enabled: activeTab === 'approved',
-    });
-
     const rejectedQuery = useQuery({
         queryKey: ['cancel-items', 'rejected'],
         queryFn: () => orderService.getResolvedCancelItems(-1),
@@ -79,21 +71,11 @@ const HomeScreen: React.FC = () => {
         enabled: activeTab === 'rejected',
     });
 
-    const pendingItems   = pendingQuery.data  || [];
-    const approvedItems  = approvedQuery.data || [];
-    const rejectedItems  = rejectedQuery.data || [];
+    const pendingItems  = pendingQuery.data  || [];
+    const rejectedItems = rejectedQuery.data || [];
 
-    const activeQuery = activeTab === 'pending'
-        ? pendingQuery
-        : activeTab === 'approved'
-        ? approvedQuery
-        : rejectedQuery;
-
-    const activeItems = activeTab === 'pending'
-        ? pendingItems
-        : activeTab === 'approved'
-        ? approvedItems
-        : rejectedItems;
+    const activeQuery = activeTab === 'pending' ? pendingQuery : rejectedQuery;
+    const activeItems = activeTab === 'pending' ? pendingItems : rejectedItems;
 
     // ── Mutation ─────────────────────────────────────────────────────────────
 

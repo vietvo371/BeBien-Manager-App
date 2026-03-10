@@ -66,12 +66,12 @@ export const ResolvedCard: React.FC<ResolvedCardProps> = ({ item }) => {
                         SL: {item.so_luong} × {formatCurrency(item.don_gia)}
                     </Text>
                 </View>
-                <View style={styles.infoRow}>
+                {/* <View style={styles.infoRow}>
                     <Icon name="account-outline" size={16} color={theme.colors.textSecondary} />
                     <Text style={styles.infoText} numberOfLines={1}>
                         {item.ten_nhan_vien_order}
                     </Text>
-                </View>
+                </View> */}
             </View>
 
             {/* Note */}

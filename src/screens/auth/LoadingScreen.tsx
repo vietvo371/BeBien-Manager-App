@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View,
+  Text,
   StyleSheet,
   ActivityIndicator,
   Image,
@@ -15,28 +15,23 @@ interface LoadingScreenProps {
 
 const LoadingScreen: React.FC<LoadingScreenProps> = ({ navigation }) => {
   useEffect(() => {
-    const checkLogin = async () => {
+    const checkSession = async () => {
       try {
-        await new Promise((resolve: any) => setTimeout(resolve, 1500));
+        const token = await authApi.getToken();
 
-        // Check stored token
-        const studentToken = await authApi.getToken();
-        if (studentToken) {
-          const check = await authApi.checkLogin(studentToken);
-          if (check) {
-            navigation.replace('MainTabs');
-            return;
-          }
+        if (!token) {
+          navigation.replace('Login');
+          return;
         }
 
-        // No valid session found
-        navigation.replace('Login');
-      } catch (error) {
-        console.error('Error checking login:', error);
+        const isValid = await authApi.verifyToken(token);
+        navigation.replace(isValid ? 'MainTabs' : 'Login');
+      } catch {
         navigation.replace('Login');
       }
     };
-    checkLogin();
+
+    checkSession();
   }, [navigation]);
 
   return (
@@ -51,6 +46,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ navigation }) => {
         color={theme.colors.primary}
         style={styles.spinner}
       />
+      {/* <Text style={styles.hint}>Đang xác thực phiên đăng nhập...</Text> */}
     </View>
   );
 };
@@ -63,12 +59,17 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.white,
   },
   logo: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     marginBottom: theme.spacing.xl,
   },
   spinner: {
     marginTop: theme.spacing.lg,
+  },
+  hint: {
+    marginTop: theme.spacing.md,
+    fontSize: 13,
+    color: theme.colors.textSecondary,
   },
 });
 

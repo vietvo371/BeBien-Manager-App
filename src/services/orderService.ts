@@ -266,6 +266,8 @@ class OrderService {
       '/nguoi-kiem-duyet/data-da-duyet-tu-choi',
       { type }
     );
+    console.log(' getResolvedCancelItems nguoi-kiem-duyet/data-da-duyet-tu-choi', type);
+    console.log('response', response);
     return response.data.data;
   }
 

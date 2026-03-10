@@ -31,6 +31,11 @@ export interface ApiResponse<T = any> {
   message?: string;
 }
 
+export interface DeviceRegisterResponse {
+  status: boolean;
+  message: string;
+}
+
 // ============================================================================
 // API CLIENTS
 // ============================================================================
@@ -165,38 +170,58 @@ class AuthApiService {
   }
 
   /**
-   * Register FCM device token for push notifications
+   * Register FCM device token for push notifications.
+   * POST /api/nguoi-kiem-duyet/device/register
+   * Non-critical: lỗi chỉ được log, không throw để tránh crash flow.
    */
   async registerDevice(
     fcmToken: string,
     deviceType: 'android' | 'ios',
     deviceName: string,
     deviceId: string
-  ): Promise<void> {
+  ): Promise<boolean> {
     try {
-      await this.api.post('/nguoi-kiem-duyet/device/register', {
-        fcm_token: fcmToken,
-        device_type: deviceType,
-        device_name: deviceName,
-        device_id: deviceId,
-      });
+      const response = await this.api.post<DeviceRegisterResponse>(
+        '/nguoi-kiem-duyet/device/register',
+        {
+          fcm_token: fcmToken,
+          device_type: deviceType,
+          device_name: deviceName,
+          device_id: deviceId,
+        }
+      );
+
+      if (response.data?.status === true) {
+        console.log('[registerDevice] ✅', response.data.message);
+        return true;
+      }
+
+      console.warn('[registerDevice] ⚠️ server trả về thất bại:', response.data?.message);
+      return false;
     } catch (error: any) {
-      console.error('Error registering device:', error);
-      throw error;
+      console.warn('[registerDevice] ⚠️ Bỏ qua lỗi đăng ký FCM:', error?.message);
+      return false;
     }
   }
 
   /**
    * Unregister FCM device token
+   * POST /api/nguoi-kiem-duyet/device/unregister
    */
   async unregisterDevice(fcmToken: string): Promise<void> {
     try {
-      await this.api.post('/nguoi-kiem-duyet/device/unregister', {
-        fcm_token: fcmToken,
-      });
+      const response = await this.api.post<DeviceRegisterResponse>(
+        '/nguoi-kiem-duyet/device/unregister',
+        { fcm_token: fcmToken }
+      );
+
+      if (response.data?.status) {
+        console.log('[unregisterDevice] ✅', response.data.message);
+      } else {
+        console.warn('[unregisterDevice] ⚠️', response.data?.message);
+      }
     } catch (error: any) {
-      console.error('Error unregistering device:', error);
-      throw error;
+      console.warn('[unregisterDevice] ⚠️ Bỏ qua lỗi:', error?.message);
     }
   }
 
@@ -235,6 +260,20 @@ class AuthApiService {
       await AsyncStorage.setItem(this.USER_KEY, JSON.stringify(user));
     } catch (error) {
       console.error('Error saving user:', error);
+    }
+  }
+
+  /**
+   * Verify Bearer token còn hợp lệ hay không.
+   * GET /api/nguoi-kiem-duyet/auth-check
+   * Res: { status: true, message: string, type: string }
+   */
+  async verifyToken(_token: string): Promise<boolean> {
+    try {
+      const response = await this.api.get('/nguoi-kiem-duyet/auth-check');
+      return response.status === 200 && response.data?.status === true;
+    } catch {
+      return false;
     }
   }
 
