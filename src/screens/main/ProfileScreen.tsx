@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     View,
     Text,
@@ -6,19 +6,52 @@ import {
     SafeAreaView,
     TouchableOpacity,
     ScrollView,
-    Alert,
     Platform,
+    Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { theme, SPACING, FONT_SIZE, BUTTON_HEIGHT, BORDER_RADIUS } from '../../theme';
+import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
+import CustomAlert, { AlertButton } from '../../component/CustomAlert';
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+/** Lấy chữ cái đầu của tên để làm avatar */
+const getInitials = (name?: string): string => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+/** Format số điện thoại 0901234567 → 0901 234 567 */
+const formatPhone = (phone?: string): string => {
+    if (!phone) return '—';
+    return phone.replace(/(\d{4})(\d{3})(\d{3})/, '$1 $2 $3');
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const ProfileScreen: React.FC = () => {
     const { user, signOut } = useAuth();
+    const [alertVisible, setAlertVisible] = useState(false);
+    const [alertButtons, setAlertButtons] = useState<AlertButton[]>([]);
+    const [alertMessage, setAlertMessage] = useState('');
+    const [alertTitle, setAlertTitle] = useState('');
+
+    const showConfirm = useCallback(
+        (title: string, message: string, buttons: AlertButton[]) => {
+            setAlertTitle(title);
+            setAlertMessage(message);
+            setAlertButtons(buttons);
+            setAlertVisible(true);
+        },
+        []
+    );
 
     const handleLogout = useCallback(() => {
-        Alert.alert(
+        showConfirm(
             'Đăng xuất',
             'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng?',
             [
@@ -26,99 +59,119 @@ const ProfileScreen: React.FC = () => {
                 {
                     text: 'Đăng xuất',
                     style: 'destructive',
-                    onPress: async () => {
-                        await signOut();
-                    },
+                    onPress: () => signOut(),
                 },
             ]
         );
-    }, [signOut]);
+    }, [showConfirm, signOut]);
 
-    const menuItems = [
+    const initials = getInitials(user?.ten_nguoi_kiem_duyet);
+    const displayName = user?.ten_nguoi_kiem_duyet || 'Người dùng';
+    const displayPhone = formatPhone(user?.so_dien_thoai);
+
+    // ── Info rows ─────────────────────────────────────────────────────────────
+
+    const infoRows: { icon: string; label: string; value: string; color?: string }[] = [
         {
-            icon: 'account-edit-outline',
-            title: 'Thông tin cá nhân',
-            subtitle: 'Quản lý thông tin tài khoản',
-            onPress: () => console.log('Thông tin cá nhân'),
+            icon: 'phone-outline',
+            label: 'Số điện thoại',
+            value: displayPhone,
         },
         {
-            icon: 'shield-lock-outline',
-            title: 'Bảo mật',
-            subtitle: 'Đổi mật khẩu, mã PIN',
-            onPress: () => console.log('Bảo mật'),
+            icon: 'shield-check-outline',
+            label: 'Vai trò',
+            value: 'Người kiểm duyệt',
+            color: theme.colors.primary,
         },
         {
-            icon: 'bell-outline',
-            title: 'Thông báo',
-            subtitle: 'Cài đặt thông báo ứng dụng',
-            onPress: () => console.log('Thông báo'),
-        },
-        {
-            icon: 'help-circle-outline',
-            title: 'Hỗ trợ',
-            subtitle: 'Liên hệ trung tâm trợ giúp',
-            onPress: () => console.log('Hỗ trợ'),
+            icon: 'circle-outline',
+            label: 'Trạng thái',
+            value: 'Đang hoạt động',
+            color: theme.colors.success,
         },
     ];
 
+    const appRows: { icon: string; label: string; value: string }[] = [
+        { icon: 'information-outline', label: 'Phiên bản', value: '1.0.0' },
+        { icon: 'server-network', label: 'Máy chủ', value: 'bebien.dzfullstackmid.io.vn' },
+    ];
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
     return (
         <SafeAreaView style={styles.container}>
+            {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Tài khoản</Text>
             </View>
+
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
             >
-                {/* User Info Card */}
-                <Animated.View
-                    entering={FadeInDown.delay(100).duration(300)}
-                    style={styles.profileCard}
-                >
-                    <View style={styles.avatarContainer}>
-                        <Icon name="account-circle" size={64} color={theme.colors.primary} />
-                    </View>
-                    <View style={styles.userInfo}>
-                        <Text style={styles.name}>{user?.full_name || 'Người dùng'}</Text>
-                        <Text style={styles.email}>{user?.email || 'Chưa cập nhật email'}</Text>
-                        <View style={styles.roleContainer}>
-                            <Text style={styles.roleText}>Nhân viên</Text>
+                {/* Avatar + Name card */}
+                <Animated.View entering={FadeInDown.delay(60).duration(300)} style={styles.profileCard}>
+                    <Image source={require('../../assets/images/logo.png')} style={styles.avatarImage} />
+                    <View style={styles.profileInfo}>
+                        <Text style={styles.displayName} numberOfLines={1}>{displayName}</Text>
+                        <Text style={styles.displayPhone}>{displayPhone}</Text>
+                        <View style={styles.roleBadge}>
+                            <Icon name="shield-check" size={12} color={theme.colors.primary} />
+                            <Text style={styles.roleBadgeText}>Người kiểm duyệt</Text>
                         </View>
                     </View>
                 </Animated.View>
 
-                {/* Menu Section */}
-                <View style={styles.menuSection}>
-                    {menuItems.map((item, index) => (
-                        <Animated.View
-                            key={index}
-                            entering={FadeInDown.delay(200 + index * 50).duration(300)}
-                        >
-                            <TouchableOpacity
-                                style={styles.menuItem}
-                                onPress={item.onPress}
-                                activeOpacity={0.7}
+                {/* Thông tin tài khoản */}
+                <Animated.View entering={FadeInDown.delay(120).duration(300)}>
+                    <Text style={styles.sectionLabel}>Thông tin tài khoản</Text>
+                    <View style={styles.card}>
+                        {infoRows.map((row, idx) => (
+                            <View
+                                key={row.label}
+                                style={[
+                                    styles.infoRow,
+                                    idx < infoRows.length - 1 && styles.infoRowBorder,
+                                ]}
                             >
-                                <View style={[styles.menuIconContainer, { backgroundColor: theme.colors.primaryLight }]}>
-                                    <Icon name={item.icon} size={24} color={theme.colors.primary} />
+                                <View style={styles.infoIconWrap}>
+                                    <Icon name={row.icon} size={18} color={theme.colors.primary} />
                                 </View>
-                                <View style={styles.menuContent}>
-                                    <Text style={styles.menuTitle}>{item.title}</Text>
-                                    {item.subtitle && (
-                                        <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-                                    )}
-                                </View>
-                                <Icon name="chevron-right" size={24} color={theme.colors.textTertiary || theme.colors.textSecondary} />
-                            </TouchableOpacity>
-                        </Animated.View>
-                    ))}
-                </View>
+                                <Text style={styles.infoLabel}>{row.label}</Text>
+                                <Text style={[styles.infoValue, row.color ? { color: row.color } : null]}>
+                                    {row.value}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                </Animated.View>
 
-                {/* Action Section */}
-                <Animated.View
-                    entering={FadeInDown.delay(500).duration(300)}
-                    style={styles.actionSection}
-                >
+                {/* Ứng dụng */}
+                <Animated.View entering={FadeInDown.delay(180).duration(300)}>
+                    <Text style={styles.sectionLabel}>Ứng dụng</Text>
+                    <View style={styles.card}>
+                        {appRows.map((row, idx) => (
+                            <View
+                                key={row.label}
+                                style={[
+                                    styles.infoRow,
+                                    idx < appRows.length - 1 && styles.infoRowBorder,
+                                ]}
+                            >
+                                <View style={styles.infoIconWrap}>
+                                    <Icon name={row.icon} size={18} color={theme.colors.textSecondary} />
+                                </View>
+                                <Text style={styles.infoLabel}>{row.label}</Text>
+                                <Text style={[styles.infoValue, styles.infoValueMuted]}>
+                                    {row.value}
+                                </Text>
+                            </View>
+                        ))}
+                    </View>
+                </Animated.View>
+
+                {/* Logout */}
+                <Animated.View entering={FadeInDown.delay(240).duration(300)} style={styles.logoutSection}>
                     <TouchableOpacity
                         style={styles.logoutButton}
                         onPress={handleLogout}
@@ -127,163 +180,212 @@ const ProfileScreen: React.FC = () => {
                         <Icon name="logout" size={20} color={theme.colors.error} />
                         <Text style={styles.logoutText}>Đăng xuất</Text>
                     </TouchableOpacity>
-                    <Text style={styles.versionText}>Phiên bản 1.0.0</Text>
                 </Animated.View>
             </ScrollView>
+
+            <CustomAlert
+                visible={alertVisible}
+                type="confirm"
+                title={alertTitle}
+                message={alertMessage}
+                buttons={alertButtons}
+                onDismiss={() => setAlertVisible(false)}
+            />
         </SafeAreaView>
     );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.colors.background,
     },
+
+    // Header
     header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
         paddingHorizontal: SPACING.lg,
-        paddingVertical: SPACING.md,
+        paddingTop: SPACING.md,
+        paddingBottom: SPACING.xl,
         backgroundColor: theme.colors.primary,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
+        borderBottomLeftRadius: 28,
+        borderBottomRightRadius: 28,
+        marginBottom: SPACING.lg,
         ...Platform.select({
             ios: {
                 shadowColor: theme.colors.primary,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
             },
-            android: {
-                elevation: 8,
-            },
+            android: { elevation: 8 },
         }),
-        marginBottom: SPACING.md,
     },
     headerTitle: {
         fontSize: FONT_SIZE['2xl'],
         fontWeight: '800',
         color: theme.colors.white,
     },
+
     scrollContent: {
-        padding: SPACING.lg,
+        paddingHorizontal: SPACING.lg,
         paddingBottom: 40,
     },
+
+    // Profile card
     profileCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: theme.colors.card,
+        borderRadius: BORDER_RADIUS.xl || 20,
         padding: SPACING.lg,
-        borderRadius: BORDER_RADIUS.lg,
-        marginBottom: SPACING.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        marginBottom: SPACING.xl,
+        gap: SPACING.lg,
         ...Platform.select({
             ios: {
-                shadowColor: theme.colors.text,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 8,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.08,
+                shadowRadius: 10,
             },
-            android: {
-                elevation: 2,
-            },
+            android: { elevation: 3 },
         }),
     },
-    avatarContainer: {
-        marginRight: SPACING.md,
+    avatarImage: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
     },
-    userInfo: {
+    avatarCircle: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+        backgroundColor: theme.colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarText: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: theme.colors.white,
+        letterSpacing: 1,
+    },
+    profileInfo: {
         flex: 1,
+        gap: 4,
     },
-    name: {
+    displayName: {
         fontSize: FONT_SIZE.xl,
         fontWeight: '700',
         color: theme.colors.text,
-        marginBottom: 4,
     },
-    email: {
+    displayPhone: {
         fontSize: FONT_SIZE.md,
         color: theme.colors.textSecondary,
-        marginBottom: 8,
     },
-    roleContainer: {
+    roleBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
         alignSelf: 'flex-start',
         backgroundColor: theme.colors.primaryLight,
         paddingHorizontal: SPACING.sm,
-        paddingVertical: 4,
+        paddingVertical: 3,
         borderRadius: BORDER_RADIUS.md,
+        gap: 4,
+        marginTop: 4,
     },
-    roleText: {
+    roleBadgeText: {
         fontSize: FONT_SIZE.xs,
-        fontWeight: '600',
+        fontWeight: '700',
         color: theme.colors.primary,
     },
-    sectionTitle: {
-        fontSize: FONT_SIZE.lg,
+
+    // Sections
+    sectionLabel: {
+        fontSize: FONT_SIZE.sm,
         fontWeight: '700',
-        color: theme.colors.text,
-        marginBottom: SPACING.md,
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        marginBottom: SPACING.sm,
+        marginLeft: SPACING.xs,
     },
-    menuSection: {
+    card: {
+        backgroundColor: theme.colors.card,
+        borderRadius: BORDER_RADIUS.lg,
         marginBottom: SPACING.xl,
+        overflow: 'hidden',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.06,
+                shadowRadius: 8,
+            },
+            android: { elevation: 2 },
+        }),
     },
-    menuItem: {
+    infoRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.colors.card,
-        padding: SPACING.md,
-        borderRadius: BORDER_RADIUS.lg,
-        marginBottom: SPACING.sm,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.md,
+        gap: SPACING.md,
     },
-    menuIconContainer: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        justifyContent: 'center',
+    infoRowBorder: {
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.borderLight,
+    },
+    infoIconWrap: {
+        width: 32,
         alignItems: 'center',
-        marginRight: SPACING.md,
     },
-    menuContent: {
+    infoLabel: {
         flex: 1,
-    },
-    menuTitle: {
         fontSize: FONT_SIZE.md,
-        fontWeight: '600',
         color: theme.colors.text,
+        fontWeight: '500',
     },
-    menuSubtitle: {
-        fontSize: FONT_SIZE.sm,
+    infoValue: {
+        fontSize: FONT_SIZE.md,
+        color: theme.colors.text,
+        fontWeight: '600',
+    },
+    infoValueMuted: {
         color: theme.colors.textSecondary,
-        marginTop: 2,
+        fontWeight: '400',
+        fontSize: FONT_SIZE.sm,
     },
-    actionSection: {
-        alignItems: 'center',
-        gap: SPACING.lg,
+
+    // Logout
+    logoutSection: {
+        marginTop: SPACING.sm,
     },
     logoutButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        width: '100%',
-        backgroundColor: theme.colors.card,
         height: BUTTON_HEIGHT.md,
         borderRadius: BORDER_RADIUS.lg,
-        borderWidth: 1,
+        backgroundColor: theme.colors.card,
+        borderWidth: 1.5,
         borderColor: theme.colors.error,
         gap: SPACING.sm,
+        ...Platform.select({
+            ios: {
+                shadowColor: theme.colors.error,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+            },
+            android: { elevation: 2 },
+        }),
     },
     logoutText: {
         fontSize: FONT_SIZE.md,
         fontWeight: '700',
         color: theme.colors.error,
-    },
-    versionText: {
-        fontSize: FONT_SIZE.sm,
-        color: theme.colors.textTertiary || theme.colors.textSecondary,
     },
 });
 
