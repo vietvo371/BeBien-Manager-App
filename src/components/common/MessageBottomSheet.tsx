@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,6 +9,7 @@ import {
     Platform,
     TextInput,
     TouchableOpacity,
+    ActivityIndicator,
     Keyboard,
     Dimensions,
 } from 'react-native';
@@ -21,7 +22,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import Toast from 'react-native-toast-message';
 import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
+import { orderService } from '../../services/orderService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = 400; // Expected max height of the sheet
@@ -29,7 +32,7 @@ const SHEET_HEIGHT = 400; // Expected max height of the sheet
 interface MessageBottomSheetProps {
     visible: boolean;
     onClose: () => void;
-    onSend: (message: string) => void;
+    onSend?: (message: string) => void;
 }
 
 export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
@@ -38,6 +41,7 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
     onSend,
 }) => {
     const [message, setMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const translateY = useSharedValue(SCREEN_HEIGHT);
     const backdropOpacity = useSharedValue(0);
 
@@ -93,10 +97,41 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
         transform: [{ translateY: translateY.value }],
     }));
 
-    const handleSendPress = () => {
-        if (message.trim()) {
-            onSend(message.trim());
-            handleClose();
+    const handleSendPress = async () => {
+        const text = message.trim();
+        if (!text || isSending) return;
+
+        setIsSending(true);
+        try {
+            const res = await orderService.sendChatMessage(text);
+            if (res.status) {
+                Toast.show({
+                    type: 'success',
+                    text1: 'Đã gửi',
+                    text2: res.message || 'Tin nhắn đã được gửi tới thu ngân.',
+                    position: 'top',
+                    visibilityTime: 3000,
+                });
+                onSend?.(text);
+                handleClose();
+            } else {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Gửi thất bại',
+                    text2: res.message || 'Không thể gửi tin nhắn. Vui lòng thử lại.',
+                    position: 'top',
+                });
+            }
+        } catch (error: any) {
+            const msg = error?.response?.data?.message || 'Đã xảy ra lỗi. Vui lòng thử lại.';
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi',
+                text2: msg,
+                position: 'top',
+            });
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -140,13 +175,22 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
 
                         <View style={styles.actions}>
                             <TouchableOpacity
-                                style={[styles.sendButton, !message.trim() && styles.sendButtonDisabled]}
+                                style={[
+                                    styles.sendButton,
+                                    (!message.trim() || isSending) && styles.sendButtonDisabled,
+                                ]}
                                 onPress={handleSendPress}
-                                disabled={!message.trim()}
+                                disabled={!message.trim() || isSending}
                                 activeOpacity={0.8}
                             >
-                                <Text style={styles.sendButtonText}>Gửi ngay</Text>
-                                <Icon name="send" size={20} color={theme.colors.white} />
+                                {isSending ? (
+                                    <ActivityIndicator size="small" color={theme.colors.white} />
+                                ) : (
+                                    <>
+                                        <Text style={styles.sendButtonText}>Gửi ngay</Text>
+                                        <Icon name="send" size={20} color={theme.colors.white} />
+                                    </>
+                                )}
                             </TouchableOpacity>
                         </View>
                     </Animated.View>

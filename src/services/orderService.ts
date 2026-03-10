@@ -304,6 +304,20 @@ class OrderService {
     return response.data;
   }
 
+  /**
+   * Gửi tin nhắn tới thu ngân.
+   * POST /api/nguoi-kiem-duyet/chat-thu-ngan
+   */
+  async sendChatMessage(message: string): Promise<{ status: boolean; message: string }> {
+    const response = await api.post<{ status: boolean; message: string }>(
+      '/nguoi-kiem-duyet/chat-thu-ngan',
+      { message }
+    );
+    console.log(' sendChatMessage nguoi-kiem-duyet/chat-thu-ngan', message);
+    console.log('response', response);
+    return response.data;
+  }
+
   async updateOrderStatus(orderId: number, status: string): Promise<Order> {
     if (USE_MOCK_DATA) {
       await new Promise<void>(resolve => setTimeout(resolve, 500));
