@@ -78,7 +78,7 @@ const MainTabs = () => {
           name="Order"
           component={OrderScreen}
           options={{
-            title: 'Đơn hàng',
+            title: 'Orders',
             tabBarIcon: ({ color }) => (
               <Icon
                 name="clipboard-list"

@@ -1,297 +1,198 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   FlatList,
-  TextInput,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
-  Alert,
   Platform,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
-import { OrderCard } from '../../components/orders/OrderCard';
-import { FilterModal } from '../../components/orders/FilterModal';
-import { useOrderStore } from '../../stores/orderStore';
+import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
+import { useQuery } from '@tanstack/react-query';
 import { orderService } from '../../services/orderService';
-import { Order, OrderStatus, OrderFilters } from '../../types/order.types';
-import { useOrderRealtime } from '../../hooks/useOrderRealtime';
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { alertPrompt } from '../../utils/alertPrompt';
+import { HoaDonOpen } from '../../types/order.types';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
+import { useOrderRealtime } from '../../hooks/useOrderRealtime';
 
-type TabValue = 'all' | OrderStatus;
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
-interface Tab {
-  value: TabValue;
-  label: string;
-  icon: string;
+const formatCurrency = (value: string | number): string =>
+  Number(value).toLocaleString('vi-VN') + 'đ';
+
+const formatTime = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatElapsed = (dateStr: string): string => {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (mins < 1) return '< 1 phút';
+  if (mins < 60) return `${mins} phút`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}p` : `${h}h`;
+};
+
+// ─── Invoice card ─────────────────────────────────────────────────────────────
+
+interface InvoiceCardProps {
+  item: HoaDonOpen;
+  index: number;
+  onPress: () => void;
 }
 
-const TABS: Tab[] = [
-  { value: 'all', label: 'Tất cả', icon: 'view-grid' },
-  { value: OrderStatus.PENDING, label: 'Chờ', icon: 'clock-outline' },
-  { value: OrderStatus.PREPARING, label: 'Nấu', icon: 'chef-hat' },
-  { value: OrderStatus.COMPLETED, label: 'Xong', icon: 'check-circle' },
-  { value: OrderStatus.CANCELLED, label: 'Hủy', icon: 'close-circle' },
-];
+const InvoiceCard: React.FC<InvoiceCardProps> = ({ item, index, onPress }) => {
+  const soMonCon = Number(item.so_mon_con);
+  const tongMon = Number(item.tong_mon);
+  const hasPending = soMonCon > 0;
+  const accentColor = hasPending ? theme.colors.error : theme.colors.success;
+  const doneMon = tongMon - soMonCon;
+  const progressPct = tongMon > 0 ? (doneMon / tongMon) * 100 : 100;
 
-type OrderScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
+  return (
+    <Animated.View entering={FadeInDown.delay(index * 40).duration(280)}>
+      <TouchableOpacity
+        style={[styles.card, { borderLeftColor: accentColor }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        {/* Header row */}
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderLeft}>
+            <View style={[styles.tableBadge, { backgroundColor: accentColor + '15' }]}>
+              <Icon name="table-chair" size={14} color={accentColor} />
+              <Text style={[styles.tableName, { color: accentColor }]}>
+                {item.ten_ban}
+              </Text>
+            </View>
+            <Text style={styles.cardTime}>vào {formatTime(item.thoi_gian_vao)}</Text>
+          </View>
+          <View style={styles.cardHeaderRight}>
+            <Text style={styles.elapsed}>
+              {formatElapsed(item.thoi_gian_vao)}
+            </Text>
+            <Icon name="chevron-right" size={18} color={theme.colors.textTertiary} />
+          </View>
+        </View>
+
+        {/* Progress bar */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressBar}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${progressPct}%` as any, backgroundColor: accentColor },
+              ]}
+            />
+          </View>
+          <Text style={styles.progressLabel}>
+            {hasPending
+              ? `Còn ${soMonCon}/${tongMon} món chưa xong`
+              : `${tongMon} món · Đã hoàn thành`}
+          </Text>
+        </View>
+
+        {/* Footer row */}
+        <View style={styles.cardFooter}>
+          <View style={styles.monCount}>
+            <Icon name="silverware-fork-knife" size={14} color={theme.colors.textSecondary} />
+            <Text style={styles.monCountText}>{tongMon} món</Text>
+          </View>
+          <Text style={styles.tongTien}>{formatCurrency(item.tong_tien)}</Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+type TabKey = 'pending' | 'done';
+type OrderScreenNav = NativeStackNavigationProp<RootStackParamList>;
 
 const OrderScreen: React.FC = () => {
-  const navigation = useNavigation<OrderScreenNavigationProp>();
-  const queryClient = useQueryClient();
-  const { filters, setFilters, resetFilters } = useOrderStore();
-
+  const navigation = useNavigation<OrderScreenNav>();
   useOrderRealtime();
 
-  const [activeTab, setActiveTab] = useState<TabValue>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isFilterModalVisible, setIsFilterModalVisible] = useState(false);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>('pending');
 
-  const currentFilters = useMemo(
-    () => ({
-      ...filters,
-      status: activeTab === 'all' ? undefined : activeTab,
-      searchQuery: searchQuery.trim(),
-    }),
-    [filters, activeTab, searchQuery]
-  );
-
-  const {
-    data,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch,
-    isLoading,
-    isError,
-  } = useInfiniteQuery({
-    queryKey: ['orders', currentFilters],
-    queryFn: ({ pageParam = 1 }) =>
-      orderService.getOrders(pageParam, 20, currentFilters),
-    getNextPageParam: (lastPage) => {
-      const { current_page, last_page } = lastPage.data.pagination;
-      return current_page < last_page ? current_page + 1 : undefined;
-    },
-    initialPageParam: 1,
-    staleTime: 30000,
+  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+    queryKey: ['hoaDonOpen'],
+    queryFn: () => orderService.getHoaDonOpen(),
+    staleTime: 30_000,
   });
 
-  const cancelOrderMutation = useMutation({
-    mutationFn: (params: { orderId: number; reason: string }) =>
-      orderService.cancelOrder({ order_id: params.orderId, reason: params.reason }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      Alert.alert('Thành công', 'Yêu cầu hủy đơn hàng đã được gửi');
-    },
-    onError: (error: any) => {
-      Alert.alert(
-        'Lỗi',
-        error.response?.data?.message || 'Không thể hủy đơn hàng'
-      );
-    },
-  });
-
-  const orders = useMemo(() => {
-    return data?.pages.flatMap((page) => page.data.orders) || [];
+  const { pending, done } = useMemo(() => {
+    const list = data?.data ?? [];
+    return {
+      pending: list.filter((h) => Number(h.so_mon_con) > 0),
+      done: list.filter((h) => Number(h.so_mon_con) === 0),
+    };
   }, [data]);
 
-  const handleLoadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage();
-    }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const activeList = activeTab === 'pending' ? pending : done;
 
-  const handleOrderPress = useCallback((order: Order) => {
-    navigation.navigate('OrderDetail', { orderId: order.id });
-  }, [navigation]);
-
-  const handleCancelOrder = useCallback((order: Order) => {
-    Alert.alert(
-      'Hủy đơn hàng',
-      `Bạn có chắc muốn hủy đơn hàng #${order.order_code}?`,
-      [
-        { text: 'Không', style: 'cancel' },
-        {
-          text: 'Hủy đơn',
-          style: 'destructive',
-          onPress: () => {
-            alertPrompt(
-              'Lý do hủy',
-              'Vui lòng nhập lý do hủy đơn hàng',
-              [
-                { text: 'Bỏ qua', style: 'cancel' },
-                {
-                  text: 'Xác nhận',
-                  onPress: (reason) => {
-                    if (reason?.trim()) {
-                      cancelOrderMutation.mutate({
-                        orderId: order.id,
-                        reason: reason.trim(),
-                      });
-                    } else {
-                      Alert.alert('Lỗi', 'Vui lòng nhập lý do hủy');
-                    }
-                  },
-                },
-              ],
-              'plain-text'
-            );
-          },
-        },
-      ]
-    );
-  }, [cancelOrderMutation]);
-
-  const handleTabPress = useCallback((tab: TabValue) => {
-    setActiveTab(tab);
-  }, []);
-
-  const handleSearch = useCallback((text: string) => {
-    setSearchQuery(text);
-  }, []);
-
-  const handleFilterPress = useCallback(() => {
-    setIsFilterModalVisible(true);
-  }, []);
-
-  const handleApplyFilters = useCallback((newFilters: OrderFilters) => {
-    setFilters(newFilters);
-  }, [setFilters]);
-
-  const handleResetFilters = useCallback(() => {
-    resetFilters();
-    setSearchQuery('');
-    setActiveTab('all');
-  }, [resetFilters]);
-
-  const renderTabBar = () => (
-    <View style={styles.tabBar}>
-      {TABS.map((tab) => {
-        const isActive = activeTab === tab.value;
-        return (
-          <TouchableOpacity
-            key={tab.value}
-            style={[styles.tab, isActive && styles.tabActive]}
-            onPress={() => handleTabPress(tab.value)}
-            activeOpacity={0.7}
-          >
-            <Icon
-              name={tab.icon}
-              size={18}
-              color={isActive ? theme.colors.primary : theme.colors.white}
-            />
-            <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
+  const handlePress = useCallback(
+    (item: HoaDonOpen) => {
+      navigation.navigate('OrderDetail', {
+        idHoaDon: item.id,
+        tenBan: item.ten_ban,
+        thoiGianVao: item.thoi_gian_vao,
+        tongTien: String(item.tong_tien),
+        tongMon: Number(item.tong_mon),
+        soMonCon: Number(item.so_mon_con),
+        tienGiamGia: String(item.tien_giam_gia),
+        phanTramGiamGia: String(item.phan_tram_giam_gia),
+      });
+    },
+    [navigation]
   );
 
-  const renderSearchBar = () => (
-    <View style={styles.searchContainer}>
-      <View
-        style={[
-          styles.searchBar,
-          isSearchFocused && styles.searchBarFocused,
-        ]}
-      >
-        <Icon name="magnify" size={20} color={theme.colors.textSecondary} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Tìm đơn hàng, số bàn..."
-          placeholderTextColor={theme.colors.textTertiary}
-          value={searchQuery}
-          onChangeText={handleSearch}
-          onFocus={() => setIsSearchFocused(true)}
-          onBlur={() => setIsSearchFocused(false)}
-          returnKeyType="search"
-        />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')}>
-            <Icon name="close-circle" size={20} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
+  const renderCard = useCallback(
+    ({ item, index }: { item: HoaDonOpen; index: number }) => (
+      <InvoiceCard item={item} index={index} onPress={() => handlePress(item)} />
+    ),
+    [handlePress]
+  );
+
+  // ── Header block (reused in loading/error states) ─────────────────────────
+
+  const HeaderBlock = (
+    <View style={styles.header}>
+      <View>
+        <Text style={styles.headerTitle}>Hóa đơn</Text>
+        {data && (
+          <Text style={styles.headerSub}>
+            {data.so_luong_ban} bàn · {formatCurrency(data.doanh_thu)}
+          </Text>
         )}
       </View>
       <TouchableOpacity
-        style={styles.filterButton}
-        onPress={handleFilterPress}
-        activeOpacity={0.7}
+        style={styles.refreshBtn}
+        onPress={() => refetch()}
+        disabled={isRefetching}
       >
-        <Icon name="filter-variant" size={20} color={theme.colors.primary} />
-        {(filters.tableNumber || filters.minTotal || filters.maxTotal) && (
-          <View style={styles.filterBadge} />
-        )}
+        {isRefetching
+          ? <ActivityIndicator size="small" color={theme.colors.white} />
+          : <Icon name="refresh" size={22} color={theme.colors.white} />}
       </TouchableOpacity>
     </View>
-  );
-
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Icon name="clipboard-list-outline" size={80} color={theme.colors.textTertiary} />
-      <Text style={styles.emptyTitle}>Không có đơn hàng</Text>
-      <Text style={styles.emptySubtitle}>
-        {searchQuery
-          ? 'Không tìm thấy đơn hàng phù hợp'
-          : 'Chưa có đơn hàng nào trong danh sách'}
-      </Text>
-    </View>
-  );
-
-  const renderFooter = () => {
-    if (!isFetchingNextPage) return null;
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-        <Text style={styles.footerText}>Đang tải thêm...</Text>
-      </View>
-    );
-  };
-
-  const renderOrderCard = useCallback(
-    ({ item, index }: { item: Order; index: number }) => (
-      <Animated.View entering={FadeInDown.delay(index * 50).duration(300)}>
-        <OrderCard
-          order={item}
-          onPress={() => handleOrderPress(item)}
-          onCancel={() => handleCancelOrder(item)}
-          showCancelAction={
-            item.status !== OrderStatus.COMPLETED &&
-            item.status !== OrderStatus.CANCELLED
-          }
-        />
-      </Animated.View>
-    ),
-    [handleOrderPress, handleCancelOrder]
   );
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Đơn hàng</Text>
-        </View>
-        <View style={styles.tabBarSection}>
-          {renderTabBar()}
-          {renderSearchBar()}
-        </View>
-        <View style={styles.loadingContainer}>
+        {HeaderBlock}
+        <View style={styles.centered}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Đang tải đơn hàng...</Text>
+          <Text style={styles.loadingText}>Đang tải danh sách bàn...</Text> 
         </View>
       </SafeAreaView>
     );
@@ -300,20 +201,14 @@ const OrderScreen: React.FC = () => {
   if (isError) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Đơn hàng</Text>
-        </View>
-        <View style={styles.tabBarSection}>
-          {renderTabBar()}
-          {renderSearchBar()}
-        </View>
-        <View style={styles.errorContainer}>
+        {HeaderBlock}
+        <View style={styles.centered}>
           <Icon name="alert-circle-outline" size={64} color={theme.colors.error} />
-          <Text style={styles.errorTitle}>Không thể tải đơn hàng</Text>
-          <Text style={styles.errorSubtitle}>Vui lòng kiểm tra kết nối và thử lại</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
-            <Icon name="refresh" size={20} color={theme.colors.white} />
-            <Text style={styles.retryButtonText}>Thử lại</Text>
+          <Text style={styles.errorTitle}>Không thể tải dữ liệu</Text>
+          <Text style={styles.errorSub}>Kiểm tra kết nối và thử lại</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+            <Icon name="refresh" size={18} color={theme.colors.white} />
+            <Text style={styles.retryBtnText}>Thử lại</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -321,224 +216,411 @@ const OrderScreen: React.FC = () => {
   }
 
   return (
-    <GestureHandlerRootView style={styles.flex}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Đơn hàng</Text>
-          <View style={styles.headerRight}>
-            <TouchableOpacity style={styles.headerButton}>
-              <Icon name="bell-outline" size={24} color={theme.colors.white} />
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationBadgeText}>3</Text>
-              </View>
-            </TouchableOpacity>
+    <SafeAreaView style={styles.container}>
+      {/* ── Header ── */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Danh sách bàn</Text>
+          <Text style={styles.headerSub}>
+            {data?.so_luong_ban ?? 0} bàn
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles.refreshBtn}
+          onPress={() => refetch()}
+          disabled={isRefetching}
+        >
+          {isRefetching
+            ? <ActivityIndicator size="small" color={theme.colors.white} />
+            : <Icon name="refresh" size={22} color={theme.colors.white} />}
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Stats row ── */}
+      <Animated.View entering={FadeInDown.delay(60).duration(260)} style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: theme.colors.error }]}>
+            {pending.length}
+          </Text>
+          <Text style={styles.statLabel}>Còn món</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: theme.colors.success }]}>
+            {done.length}
+          </Text>
+          <Text style={styles.statLabel}>Đã xong</Text>
+        </View>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+            {formatCurrency(data?.doanh_thu ?? 0)}
+          </Text>
+          <Text style={styles.statLabel}>Doanh thu</Text>
+        </View>
+      </Animated.View>
+
+      {/* ── Tab bar ── */}
+      <Animated.View entering={FadeInDown.delay(120).duration(260)} style={styles.tabBar}>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'pending' && styles.tabPendingActive]}
+          onPress={() => setActiveTab('pending')}
+          activeOpacity={0.8}
+        >
+          <Icon
+            name="fire"
+            size={16}
+            color={activeTab === 'pending' ? theme.colors.white : theme.colors.error}
+          />
+          <Text style={[styles.tabText, activeTab === 'pending' && styles.tabTextActive]}>
+            Còn món
+          </Text>
+          <View style={[
+            styles.tabCount,
+            activeTab === 'pending' ? styles.tabCountActiveRed : styles.tabCountInactiveRed,
+          ]}>
+            <Text style={[
+              styles.tabCountText,
+              { color: activeTab === 'pending' ? theme.colors.white : theme.colors.error },
+            ]}>
+              {pending.length}
+            </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
-        <View style={styles.tabBarSection}>
-          {renderTabBar()}
-          {renderSearchBar()}
-        </View>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'done' && styles.tabDoneActive]}
+          onPress={() => setActiveTab('done')}
+          activeOpacity={0.8}
+        >
+          <Icon
+            name="check-circle-outline"
+            size={16}
+            color={activeTab === 'done' ? theme.colors.white : theme.colors.success}
+          />
+          <Text style={[styles.tabText, activeTab === 'done' && styles.tabTextActive]}>
+            Đã xong
+          </Text>
+          <View style={[
+            styles.tabCount,
+            activeTab === 'done' ? styles.tabCountActiveGreen : styles.tabCountInactiveGreen,
+          ]}>
+            <Text style={[
+              styles.tabCountText,
+              { color: activeTab === 'done' ? theme.colors.white : theme.colors.success },
+            ]}>
+              {done.length}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
 
-        <FlatList
-          data={orders}
-          renderItem={renderOrderCard}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={[
-            styles.listContent,
-            orders.length === 0 && styles.listContentEmpty,
-          ]}
-          onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
-          ListEmptyComponent={renderEmptyState}
-          ListFooterComponent={renderFooter}
-          refreshControl={
-            <RefreshControl
-              refreshing={false}
-              onRefresh={() => refetch()}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-              title="Đang tải..."
-              titleColor={theme.colors.textSecondary}
+      {/* ── List ── */}
+      <FlatList
+        key={activeTab}
+        data={activeList}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={renderCard}
+        contentContainerStyle={[
+          styles.listContent,
+          activeList.length === 0 && styles.listContentEmpty,
+        ]}
+        ListEmptyComponent={
+          <View style={styles.centered}>
+            <Icon
+              name={activeTab === 'pending' ? 'check-all' : 'clipboard-check-outline'}
+              size={72}
+              color={theme.colors.textTertiary}
             />
-          }
-          showsVerticalScrollIndicator={false}
-        />
-
-        <FilterModal
-          visible={isFilterModalVisible}
-          currentFilters={filters}
-          onClose={() => setIsFilterModalVisible(false)}
-          onApply={handleApplyFilters}
-          onReset={handleResetFilters}
-        />
-      </SafeAreaView>
-    </GestureHandlerRootView>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'pending' ? 'Không còn món chờ' : 'Chưa có bàn hoàn thành'}
+            </Text>
+            <Text style={styles.emptySub}>
+              {activeTab === 'pending'
+                ? 'Tất cả bàn đã được phục vụ xong'
+                : 'Các bàn đang trong quá trình chế biến'}
+            </Text>
+          </View>
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+    </SafeAreaView>
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
-  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.xl,
     backgroundColor: theme.colors.primary,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    marginBottom: SPACING.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: theme.colors.primary,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: { elevation: 8 },
+    }),
   },
   headerTitle: {
     fontSize: FONT_SIZE['2xl'],
     fontWeight: '800',
     color: theme.colors.white,
   },
-  headerRight: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
+  headerSub: {
+    fontSize: FONT_SIZE.sm,
+    color: theme.colors.white,
+    opacity: 0.8,
+    marginTop: 2,
   },
-  headerButton: {
-    padding: SPACING.xs,
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: theme.colors.white,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
   },
-  notificationBadgeText: {
-    fontSize: FONT_SIZE['2xs'],
-    fontWeight: '800',
-    color: theme.colors.primary,
-  },
-  tabBarSection: {
-    backgroundColor: theme.colors.primary,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    paddingBottom: SPACING.md,
+
+  // Stats row
+  statsRow: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.card,
+    marginHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.lg,
+    marginBottom: SPACING.md,
     ...Platform.select({
       ios: {
-        shadowColor: theme.colors.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
         shadowRadius: 8,
       },
-      android: {
-        elevation: 8,
-      },
+      android: { elevation: 2 },
     }),
-    marginBottom: SPACING.md,
   },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: SPACING.sm,
+  },
+  statValue: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: '800',
+  },
+  statLabel: {
+    fontSize: FONT_SIZE.xs,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+
+  // Tab bar
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+    backgroundColor: theme.colors.card,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: 4,
+    gap: 4,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
   },
   tab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: SPACING.sm,
+    justifyContent: 'center',
+    paddingVertical: 10,
     paddingHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    backgroundColor: theme.colors.overlayLight,
+    borderRadius: BORDER_RADIUS.md,
+    gap: 6,
   },
-  tabActive: {
-    backgroundColor: theme.colors.backgroundTertiary,
+  tabPendingActive: {
+    backgroundColor: theme.colors.error,
+  },
+  tabDoneActive: {
+    backgroundColor: theme.colors.success,
   },
   tabText: {
     fontSize: FONT_SIZE.sm,
-    fontWeight: '600',
-    color: theme.colors.white,
+    fontWeight: '700',
+    color: theme.colors.textSecondary,
   },
   tabTextActive: {
-    color: theme.colors.primary,
-    fontWeight: '800',
+    color: theme.colors.white,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.xs,
-    gap: SPACING.sm,
-    backgroundColor: theme.colors.primary,
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    height: BUTTON_HEIGHT.md,
-    backgroundColor: theme.colors.background,
-    borderRadius: BORDER_RADIUS.lg,
-    paddingHorizontal: SPACING.md,
-    gap: SPACING.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  searchBarFocused: {
-    borderColor: theme.colors.primary,
-    backgroundColor: theme.colors.white,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: FONT_SIZE.md,
-    color: theme.colors.text,
-    padding: 0,
-  },
-  filterButton: {
-    width: BUTTON_HEIGHT.md,
-    height: BUTTON_HEIGHT.md,
+  tabCount: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.white,
-    borderRadius: BORDER_RADIUS.lg,
-    position: 'relative',
+    paddingHorizontal: 5,
   },
-  filterBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.error,
+  tabCountActiveRed: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
+  tabCountActiveGreen: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  tabCountInactiveRed: {
+    backgroundColor: theme.colors.error + '20',
+  },
+  tabCountInactiveGreen: {
+    backgroundColor: theme.colors.success + '20',
+  },
+  tabCountText: {
+    fontSize: FONT_SIZE.xs,
+    fontWeight: '800',
+  },
+
+  // List
   listContent: {
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
     paddingBottom: 100,
   },
   listContentEmpty: {
     flex: 1,
   },
-  loadingContainer: {
+
+  // Invoice card
+  card: {
+    backgroundColor: theme.colors.card,
+    borderRadius: BORDER_RADIUS.lg,
+    marginBottom: SPACING.sm,
+    borderLeftWidth: 4,
+    padding: SPACING.md,
+    gap: SPACING.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  cardHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  tableBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  tableName: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '800',
+  },
+  cardTime: {
+    fontSize: FONT_SIZE.sm,
+    color: theme.colors.textSecondary,
+  },
+  elapsed: {
+    fontSize: FONT_SIZE.xs,
+    color: theme.colors.textTertiary,
+  },
+  progressSection: {
+    gap: 4,
+  },
+  progressBar: {
+    height: 5,
+    backgroundColor: theme.colors.borderLight,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressLabel: {
+    fontSize: FONT_SIZE.xs,
+    color: theme.colors.textSecondary,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  monCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  monCountText: {
+    fontSize: FONT_SIZE.sm,
+    color: theme.colors.textSecondary,
+  },
+  tongTien: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: '800',
+    color: theme.colors.text,
+  },
+
+  // States
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: SPACING.md,
+    paddingHorizontal: SPACING.xl,
   },
   loadingText: {
     fontSize: FONT_SIZE.md,
     color: theme.colors.textSecondary,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.md,
   },
   errorTitle: {
     fontSize: FONT_SIZE.xl,
@@ -546,12 +628,12 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     textAlign: 'center',
   },
-  errorSubtitle: {
+  errorSub: {
     fontSize: FONT_SIZE.md,
     color: theme.colors.textSecondary,
     textAlign: 'center',
   },
-  retryButton: {
+  retryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
@@ -559,41 +641,24 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.xl,
     borderRadius: BORDER_RADIUS.lg,
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
   },
-  retryButtonText: {
+  retryBtnText: {
     fontSize: FONT_SIZE.md,
     fontWeight: '600',
     color: theme.colors.white,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.md,
   },
   emptyTitle: {
     fontSize: FONT_SIZE.xl,
     fontWeight: '700',
     color: theme.colors.text,
-    marginTop: SPACING.lg,
+    marginTop: SPACING.md,
+    textAlign: 'center',
   },
-  emptySubtitle: {
+  emptySub: {
     fontSize: FONT_SIZE.md,
     color: theme.colors.textSecondary,
     textAlign: 'center',
-  },
-  footerLoader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  footerText: {
-    fontSize: FONT_SIZE.sm,
-    color: theme.colors.textSecondary,
   },
 });
 

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { theme } from '../../theme/colors';
 import { authApi } from '../../utils/authApi';
+import { unregisterCurrentDevice } from '../../component/NotificationService';
 
 interface LoadingScreenProps {
   navigation: any;
@@ -25,8 +26,21 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({ navigation }) => {
         }
 
         const isValid = await authApi.verifyToken(token);
-        navigation.replace(isValid ? 'MainTabs' : 'Login');
-      } catch {
+
+        if (isValid) {
+          navigation.replace('MainTabs');
+        } else {
+          console.log('[LoadingScreen] ⚠️ Token hết hạn — huỷ FCM và xoá local data');
+          await unregisterCurrentDevice().catch((e) =>
+            console.warn('[LoadingScreen] ⚠️ Bỏ qua lỗi unregister FCM:', e?.message)
+          );
+          await authApi.signOut();
+          navigation.replace('Login');
+        }
+      } catch (e: any) {
+        console.warn('[LoadingScreen] ⚠️ Lỗi kiểm tra session:', e?.message);
+        await unregisterCurrentDevice().catch(() => {});
+        await authApi.signOut().catch(() => {});
         navigation.replace('Login');
       }
     };

@@ -15,6 +15,10 @@ import {
   ApproveCancelResponse,
   ActionDuyetRequest,
   ActionDuyetResponse,
+  HoaDonOpen,
+  HoaDonOpenListResponse,
+  HoaDonChiTietItem,
+  HoaDonChiTietResponse,
 } from '../types/order.types';
 import { generateMockOrders } from '../utils/mockOrderData';
 
@@ -258,7 +262,7 @@ class OrderService {
     );
     console.log(' getPendingCancelItems nguoi-kiem-duyet/data-chua-duyet');
     console.log('response', response);
-    return response.data.data;
+    return response.data?.data ?? [];
   }
 
   async getResolvedCancelItems(type: 2 | -1): Promise<PendingCancelItem[]> {
@@ -268,7 +272,7 @@ class OrderService {
     );
     console.log(' getResolvedCancelItems nguoi-kiem-duyet/data-da-duyet-tu-choi', type);
     console.log('response', response);
-    return response.data.data;
+    return response.data?.data ?? [];
   }
 
   async approveCancelItem(itemId: number): Promise<ApproveCancelResponse> {
@@ -301,7 +305,35 @@ class OrderService {
       '/nguoi-kiem-duyet/action-duyet',
       request
     );
+    console.log(' actionDuyet nguoi-kiem-duyet/action-duyet', request);
+    console.log('response', response);
     return response.data;
+  }
+
+  /**
+   * Danh sách hóa đơn đang mở (khu vực 1, chưa thanh toán).
+   * GET /api/nguoi-kiem-duyet/hoa-don-open
+   */
+  async getHoaDonOpen(): Promise<HoaDonOpenListResponse> {
+    const response = await api.get<HoaDonOpenListResponse>(
+      '/nguoi-kiem-duyet/hoa-don-open'
+    );
+    console.log(' getHoaDonOpen nguoi-kiem-duyet/hoa-don-open');
+    console.log('response', response);
+    return response.data ?? { data: [], so_luong_ban: 0, doanh_thu: 0 };
+  }
+
+  /**
+   * Chi tiết món của một hóa đơn.
+   * GET /api/nguoi-kiem-duyet/hoa-don-open/chi-tiet/{id_hoa_don}
+   */
+  async getHoaDonChiTiet(idHoaDon: number): Promise<HoaDonChiTietItem[]> {
+    const response = await api.get<HoaDonChiTietResponse>(
+      `/nguoi-kiem-duyet/hoa-don-open/chi-tiet/${idHoaDon}`
+    );
+    console.log(' getHoaDonChiTiet nguoi-kiem-duyet/hoa-don-open/chi-tiet/${idHoaDon}', idHoaDon);
+    console.log('response', response);
+    return response.data?.data ?? [];
   }
 
   /**

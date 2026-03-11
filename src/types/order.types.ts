@@ -135,6 +135,61 @@ export interface ValidationError422 {
   errors: Record<string, string[]>;
 }
 
+// ─── Hóa đơn đang mở (khu vực 1) ─────────────────────────────────────────────
+
+/** Một hóa đơn chưa thanh toán từ /api/nguoi-kiem-duyet/hoa-don-open */
+export interface HoaDonOpen {
+  id_ban: number;
+  ten_ban: string;
+  status: number;
+  /** id hóa đơn — dùng làm id_hoa_don khi gọi chi-tiet */
+  id: number;
+  thoi_gian_vao: string;
+  /** API có thể trả về string hoặc number */
+  tien_giam_gia: string | number;
+  phan_tram_giam_gia: string | number;
+  tong_tien: string | number;
+  /** API trả về string "4" hoặc number 4 */
+  tong_mon: string | number;
+  /** API trả về string "0" hoặc number 0 */
+  so_mon_con: string | number;
+}
+
+export interface HoaDonOpenListResponse {
+  data: HoaDonOpen[];
+  so_luong_ban: number;
+  doanh_thu: number;
+}
+
+// ─── Chi tiết món của hóa đơn ─────────────────────────────────────────────────
+
+/**
+ * Một dòng món trong hóa đơn từ /api/nguoi-kiem-duyet/hoa-don-open/chi-tiet/{id}
+ *
+ * Badge màu trạng thái:
+ *  - is_print=0              → xám  "Không In"
+ *  - is_print=1 & is_che_bien=0 → cam  "Đang chế biến"
+ *  - is_print=1 & is_che_bien=1 → xanh "Xong"
+ */
+export interface HoaDonChiTietItem {
+  id: number;
+  id_hoa_don: number;
+  id_mat_hang: number;
+  so_luong: string;
+  don_gia: string;
+  thanh_tien: string;
+  ghi_chu?: string;
+  is_print: 0 | 1;
+  is_che_bien: 0 | 1;
+  ten_mat_hang: string;
+}
+
+export interface HoaDonChiTietResponse {
+  data: HoaDonChiTietItem[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Trích xuất lỗi 422 thành chuỗi hiển thị cho người dùng.
  * Ưu tiên field đầu tiên nếu có, fallback về `message` gốc.

@@ -4,490 +4,396 @@ import {
   Text,
   StyleSheet,
   SafeAreaView,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
+  Platform,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
+import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { orderService } from '../../services/orderService';
-import { OrderStatus } from '../../types/order.types';
+import { HoaDonChiTietItem } from '../../types/order.types';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-type OrderDetailRouteProp = RouteProp<RootStackParamList, 'OrderDetail'>;
-type OrderDetailNavigationProp = NativeStackNavigationProp<RootStackParamList, 'OrderDetail'>;
+type DetailRoute = RouteProp<RootStackParamList, 'OrderDetail'>;
+type DetailNav = NativeStackNavigationProp<RootStackParamList, 'OrderDetail'>;
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+const formatCurrency = (value: string | number): string =>
+  Number(value).toLocaleString('vi-VN') + 'đ';
+
+const formatDateTime = (dateStr: string): string => {
+  const d = new Date(dateStr);
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+const formatElapsed = (dateStr: string): string => {
+  const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (mins < 1) return '< 1 phút';
+  if (mins < 60) return `${mins} phút`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h}h ${m}p` : `${h}h`;
+};
+
+// ─── Item status badge ────────────────────────────────────────────────────────
+
+interface ItemStatus {
+  label: string;
+  color: string;
+  bg: string;
+  icon: string;
+}
+
+const getItemStatus = (item: HoaDonChiTietItem, thoiGianVao: string): ItemStatus => {
+  if (item.is_print === 0) {
+    return {
+      label: 'Không In',
+      color: theme.colors.textSecondary,
+      bg: theme.colors.borderLight,
+      icon: 'printer-off-outline',
+    };
+  }
+  if (item.is_che_bien === 0) {
+    const elapsed = formatElapsed(thoiGianVao);
+    return {
+      label: `Đang CB · ${elapsed}`,
+      color: '#D97706',
+      bg: '#FEF3C7',
+      icon: 'chef-hat',
+    };
+  }
+  return {
+    label: 'Xong',
+    color: theme.colors.success,
+    bg: theme.colors.successLight,
+    icon: 'check-circle-outline',
+  };
+};
+
+// ─── Item row ─────────────────────────────────────────────────────────────────
+
+interface ItemRowProps {
+  item: HoaDonChiTietItem;
+  index: number;
+  lastIndex: number;
+  thoiGianVao: string;
+}
+
+const ItemRow: React.FC<ItemRowProps> = ({ item, index, lastIndex, thoiGianVao }) => {
+  const status = getItemStatus(item, thoiGianVao);
+
+  return (
+    <Animated.View entering={FadeInDown.delay(index * 40).duration(260)}>
+      <View style={[styles.itemRow, index < lastIndex && styles.itemRowBorder]}>
+        {/* Left: qty */}
+        <View style={styles.itemQtyBox}>
+          <Text style={styles.itemQty}>{parseFloat(item.so_luong).toFixed(0)}</Text>
+        </View>
+
+        {/* Middle: name + note */}
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemName}>{item.ten_mat_hang}</Text>
+          {item.ghi_chu ? (
+            <Text style={styles.itemNote}>
+              <Icon name="note-text-outline" size={12} color={theme.colors.textTertiary} />{' '}
+              {item.ghi_chu}
+            </Text>
+          ) : null}
+          <Text style={styles.itemPrice}>{formatCurrency(item.thanh_tien)}</Text>
+        </View>
+
+        {/* Right: status badge */}
+        <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+          <Icon name={status.icon} size={12} color={status.color} />
+          <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
+};
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 
 const OrderDetailScreen: React.FC = () => {
-  const route = useRoute<OrderDetailRouteProp>();
-  const navigation = useNavigation<OrderDetailNavigationProp>();
-  const queryClient = useQueryClient();
-  const { orderId } = route.params;
+  const route = useRoute<DetailRoute>();
+  const navigation = useNavigation<DetailNav>();
+  const {
+    idHoaDon,
+    tenBan,
+    thoiGianVao,
+    tongTien,
+    tongMon,
+    soMonCon,
+    tienGiamGia,
+    phanTramGiamGia,
+  } = route.params;
 
-  const { data: order, isLoading, isError, refetch } = useQuery({
-    queryKey: ['order', orderId],
-    queryFn: () => orderService.getOrderById(orderId),
-    staleTime: 30000,
+  const { data: items, isLoading, isError, refetch, isRefetching } = useQuery({
+    queryKey: ['hoaDonChiTiet', idHoaDon],
+    queryFn: () => orderService.getHoaDonChiTiet(idHoaDon),
+    staleTime: 30_000,
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: (status: string) => orderService.updateOrderStatus(orderId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      Alert.alert('Thành công', 'Cập nhật trạng thái đơn hàng thành công');
-    },
-    onError: (error: any) => {
-      Alert.alert('Lỗi', error.response?.data?.message || 'Không thể cập nhật trạng thái');
-    },
-  });
+  const hasPending = soMonCon > 0;
+  const accentColor = hasPending ? theme.colors.error : theme.colors.success;
 
-  const getStatusColor = (status: OrderStatus): string => {
-    switch (status) {
-      case OrderStatus.PENDING:
-        return theme.colors.warning;
-      case OrderStatus.CONFIRMED:
-        return theme.colors.info;
-      case OrderStatus.PREPARING:
-        return theme.colors.primary;
-      case OrderStatus.READY:
-        return theme.colors.success;
-      case OrderStatus.COMPLETED:
-        return theme.colors.textSecondary;
-      case OrderStatus.CANCELLED:
-        return theme.colors.error;
-      default:
-        return theme.colors.textSecondary;
-    }
-  };
+  const renderItem = useCallback(
+    ({ item, index }: { item: HoaDonChiTietItem; index: number }) => (
+      <ItemRow
+        item={item}
+        index={index}
+        lastIndex={(items?.length ?? 1) - 1}
+        thoiGianVao={thoiGianVao}
+      />
+    ),
+    [items, thoiGianVao]
+  );
 
-  const getStatusLabel = (status: OrderStatus): string => {
-    switch (status) {
-      case OrderStatus.PENDING:
-        return 'Chờ xác nhận';
-      case OrderStatus.CONFIRMED:
-        return 'Đã xác nhận';
-      case OrderStatus.PREPARING:
-        return 'Đang chuẩn bị';
-      case OrderStatus.READY:
-        return 'Sẵn sàng';
-      case OrderStatus.COMPLETED:
-        return 'Hoàn thành';
-      case OrderStatus.CANCELLED:
-        return 'Đã hủy';
-      default:
-        return status;
-    }
-  };
+  // ── Loading / error ──────────────────────────────────────────────────────────
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(amount);
-  };
-
-  const formatDateTime = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const handleUpdateStatus = useCallback((status: string) => {
-    Alert.alert(
-      'Xác nhận',
-      `Bạn có chắc muốn cập nhật trạng thái đơn hàng?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xác nhận',
-          onPress: () => updateStatusMutation.mutate(status),
-        },
-      ]
-    );
-  }, [updateStatusMutation]);
-
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-left" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
-          <View style={styles.headerRight} />
+  const renderHeader = () => (
+    <>
+      {/* Invoice summary card */}
+      <Animated.View entering={FadeInDown.duration(260)} style={styles.summaryCard}>
+        {/* Entry time */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryLeft}>
+            <Icon name="clock-in" size={16} color={theme.colors.textSecondary} />
+            <Text style={styles.summaryLabel}>Giờ vào</Text>
+          </View>
+          <Text style={styles.summaryValue}>{formatDateTime(thoiGianVao)}</Text>
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Đang tải...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+        <View style={styles.divider} />
 
-  if (isError || !order) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Icon name="arrow-left" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
-          <View style={styles.headerRight} />
+        {/* Total items */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryLeft}>
+            <Icon name="silverware-fork-knife" size={16} color={theme.colors.textSecondary} />
+            <Text style={styles.summaryLabel}>Tổng món</Text>
+          </View>
+          <Text style={styles.summaryValue}>{tongMon} món</Text>
         </View>
-        <View style={styles.errorContainer}>
-          <Icon name="alert-circle-outline" size={64} color={theme.colors.error} />
-          <Text style={styles.errorTitle}>Không thể tải đơn hàng</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
-            <Icon name="refresh" size={20} color={theme.colors.white} />
-            <Text style={styles.retryButtonText}>Thử lại</Text>
-          </TouchableOpacity>
+
+        {/* Pending items */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryLeft}>
+            <Icon name="chef-hat" size={16} color={hasPending ? theme.colors.error : theme.colors.success} />
+            <Text style={styles.summaryLabel}>Còn chế biến</Text>
+          </View>
+          <Text style={[styles.summaryValue, { color: hasPending ? theme.colors.error : theme.colors.success }]}>
+            {soMonCon} món
+          </Text>
         </View>
-      </SafeAreaView>
-    );
-  }
+
+        {/* Discount */}
+        {parseFloat(tienGiamGia) > 0 && (
+          <>
+            <View style={styles.divider} />
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryLeft}>
+                <Icon name="tag-outline" size={16} color={theme.colors.success} />
+                <Text style={styles.summaryLabel}>
+                  Giảm giá {parseFloat(phanTramGiamGia) > 0 ? `(${phanTramGiamGia}%)` : ''}
+                </Text>
+              </View>
+              <Text style={[styles.summaryValue, { color: theme.colors.success }]}>
+                -{formatCurrency(tienGiamGia)}
+              </Text>
+            </View>
+          </>
+        )}
+
+        <View style={styles.divider} />
+        <View style={styles.summaryRow}>
+          <Text style={styles.totalLabel}>Tổng cộng</Text>
+          <Text style={[styles.totalValue, { color: accentColor }]}>
+            {formatCurrency(tongTien)}
+          </Text>
+        </View>
+      </Animated.View>
+
+      {/* Items section header */}
+      <Animated.View entering={FadeInDown.delay(100).duration(260)}>
+        <Text style={styles.itemsSectionTitle}>
+          Danh sách món ({items?.length ?? 0})
+        </Text>
+      </Animated.View>
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-left" size={24} color={theme.colors.text} />
+      {/* Header */}
+      <View style={[styles.header, { backgroundColor: accentColor }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-left" size={24} color={theme.colors.white} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>#{order.order_code}</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.headerButton}>
-            <Icon name="share-variant" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>{tenBan}</Text>
+          <Text style={styles.headerSub}>
+            {hasPending
+              ? `${soMonCon} món đang chế biến`
+              : 'Đã hoàn thành'}
+          </Text>
         </View>
+        <TouchableOpacity
+          style={styles.refreshBtn}
+          onPress={() => refetch()}
+          disabled={isRefetching}
+        >
+          {isRefetching ? (
+            <ActivityIndicator size="small" color={theme.colors.white} />
+          ) : (
+            <Icon name="refresh" size={22} color={theme.colors.white} />
+          )}
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <Animated.View entering={FadeInDown.duration(300)}>
-          <View style={styles.statusCard}>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
-              <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>
-                {getStatusLabel(order.status)}
-              </Text>
-            </View>
-            <Text style={styles.orderCode}>Đơn hàng #{order.order_code}</Text>
-            {order.table_number && (
-              <View style={styles.tableRow}>
-                <Icon name="table-chair" size={20} color={theme.colors.textSecondary} />
-                <Text style={styles.tableText}>Bàn số {order.table_number}</Text>
-              </View>
-            )}
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(100).duration(300)}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Thông tin khách hàng</Text>
-            <View style={styles.infoCard}>
-              {order.customer_name && (
-                <View style={styles.infoRow}>
-                  <Icon name="account" size={20} color={theme.colors.textSecondary} />
-                  <Text style={styles.infoLabel}>Tên khách:</Text>
-                  <Text style={styles.infoValue}>{order.customer_name}</Text>
-                </View>
-              )}
-              {order.customer_phone && (
-                <View style={styles.infoRow}>
-                  <Icon name="phone" size={20} color={theme.colors.textSecondary} />
-                  <Text style={styles.infoLabel}>Số điện thoại:</Text>
-                  <Text style={styles.infoValue}>{order.customer_phone}</Text>
-                </View>
-              )}
-              <View style={styles.infoRow}>
-                <Icon name="clock-outline" size={20} color={theme.colors.textSecondary} />
-                <Text style={styles.infoLabel}>Thời gian:</Text>
-                <Text style={styles.infoValue}>{formatDateTime(order.created_at)}</Text>
-              </View>
-            </View>
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(200).duration(300)}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Chi tiết món ăn</Text>
-            <View style={styles.itemsCard}>
-              {order.items.map((item, index) => (
-                <View
-                  key={item.id}
-                  style={[styles.itemRow, index < order.items.length - 1 && styles.itemRowBorder]}
-                >
-                  <View style={styles.itemLeft}>
-                    <Text style={styles.itemQuantity}>{item.quantity}x</Text>
-                    <View style={styles.itemInfo}>
-                      <Text style={styles.itemName}>{item.product_name}</Text>
-                      {item.notes && (
-                        <Text style={styles.itemNotes}>Ghi chú: {item.notes}</Text>
-                      )}
-                    </View>
-                  </View>
-                  <Text style={styles.itemPrice}>{formatCurrency(item.subtotal)}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(300).duration(300)}>
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tổng kết</Text>
-            <View style={styles.summaryCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Tạm tính:</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(order.subtotal)}</Text>
-              </View>
-              {order.discount > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Giảm giá:</Text>
-                  <Text style={[styles.summaryValue, { color: theme.colors.success }]}>
-                    -{formatCurrency(order.discount)}
-                  </Text>
-                </View>
-              )}
-              {order.tax > 0 && (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Thuế VAT:</Text>
-                  <Text style={styles.summaryValue}>{formatCurrency(order.tax)}</Text>
-                </View>
-              )}
-              <View style={styles.divider} />
-              <View style={styles.summaryRow}>
-                <Text style={styles.totalLabel}>Tổng cộng:</Text>
-                <Text style={styles.totalValue}>{formatCurrency(order.total)}</Text>
-              </View>
-            </View>
-          </View>
-        </Animated.View>
-
-        {order.notes && (
-          <Animated.View entering={FadeInDown.delay(400).duration(300)}>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ghi chú</Text>
-              <View style={styles.notesCard}>
-                <Text style={styles.notesText}>{order.notes}</Text>
-              </View>
-            </View>
-          </Animated.View>
-        )}
-
-        <View style={styles.bottomPadding} />
-      </ScrollView>
-
-      {order.status !== OrderStatus.COMPLETED && order.status !== OrderStatus.CANCELLED && (
-        <View style={styles.footer}>
-          {order.status === OrderStatus.PENDING && (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleUpdateStatus(OrderStatus.CONFIRMED)}
-              activeOpacity={0.8}
-            >
-              <Icon name="check-circle" size={20} color={theme.colors.white} />
-              <Text style={styles.actionButtonText}>Xác nhận</Text>
-            </TouchableOpacity>
-          )}
-          {order.status === OrderStatus.CONFIRMED && (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => handleUpdateStatus(OrderStatus.PREPARING)}
-              activeOpacity={0.8}
-            >
-              <Icon name="chef-hat" size={20} color={theme.colors.white} />
-              <Text style={styles.actionButtonText}>Bắt đầu nấu</Text>
-            </TouchableOpacity>
-          )}
-          {order.status === OrderStatus.PREPARING && (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.success }]}
-              onPress={() => handleUpdateStatus(OrderStatus.READY)}
-              activeOpacity={0.8}
-            >
-              <Icon name="bell-ring" size={20} color={theme.colors.white} />
-              <Text style={styles.actionButtonText}>Sẵn sàng</Text>
-            </TouchableOpacity>
-          )}
-          {order.status === OrderStatus.READY && (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.colors.success }]}
-              onPress={() => handleUpdateStatus(OrderStatus.COMPLETED)}
-              activeOpacity={0.8}
-            >
-              <Icon name="checkbox-marked-circle" size={20} color={theme.colors.white} />
-              <Text style={styles.actionButtonText}>Hoàn thành</Text>
-            </TouchableOpacity>
-          )}
+      {isLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Đang tải chi tiết...</Text>
         </View>
+      ) : isError ? (
+        <View style={styles.centered}>
+          <Icon name="alert-circle-outline" size={56} color={theme.colors.error} />
+          <Text style={styles.errorTitle}>Không thể tải chi tiết</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => refetch()}>
+            <Icon name="refresh" size={18} color={theme.colors.white} />
+            <Text style={styles.retryBtnText}>Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={items ?? []}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderItem}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={
+            <View style={styles.emptyItems}>
+              <Icon name="silverware-clean" size={48} color={theme.colors.textTertiary} />
+              <Text style={styles.emptyItemsText}>Chưa có món nào</Text>
+            </View>
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              colors={[theme.colors.primary]}
+              tintColor={theme.colors.primary}
+            />
+          }
+        />
       )}
     </SafeAreaView>
   );
 };
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: theme.colors.card,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xl,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    marginBottom: SPACING.md,
+    gap: SPACING.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerCenter: {
+    flex: 1,
   },
   headerTitle: {
-    fontSize: FONT_SIZE.xl,
-    fontWeight: '700',
-    color: theme.colors.text,
-    flex: 1,
-    textAlign: 'center',
+    fontSize: FONT_SIZE['2xl'],
+    fontWeight: '800',
+    color: theme.colors.white,
   },
-  backButton: {
-    padding: SPACING.xs,
-    width: 40,
-  },
-  headerRight: {
-    width: 40,
-    alignItems: 'flex-end',
-  },
-  headerButton: {
-    padding: SPACING.xs,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  statusCard: {
-    backgroundColor: theme.colors.card,
-    padding: SPACING.xl,
-    marginBottom: SPACING.md,
-    alignItems: 'center',
-  },
-  statusBadge: {
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    borderRadius: BORDER_RADIUS.lg,
-    marginBottom: SPACING.md,
-  },
-  statusText: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-  },
-  orderCode: {
-    fontSize: FONT_SIZE['3xl'],
-    fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: SPACING.sm,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  tableText: {
-    fontSize: FONT_SIZE.md,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-  },
-  section: {
-    marginBottom: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: FONT_SIZE.lg,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-  },
-  infoCard: {
-    backgroundColor: theme.colors.card,
-    padding: SPACING.lg,
-    gap: SPACING.md,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  infoLabel: {
-    fontSize: FONT_SIZE.md,
-    color: theme.colors.textSecondary,
-    fontWeight: '500',
-  },
-  infoValue: {
-    fontSize: FONT_SIZE.md,
-    color: theme.colors.text,
-    fontWeight: '600',
-    flex: 1,
-    textAlign: 'right',
-  },
-  itemsCard: {
-    backgroundColor: theme.colors.card,
-    padding: SPACING.lg,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: SPACING.md,
-  },
-  itemRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  itemLeft: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    flex: 1,
-    gap: SPACING.sm,
-  },
-  itemQuantity: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '700',
-    color: theme.colors.primary,
-    minWidth: 30,
-  },
-  itemInfo: {
-    flex: 1,
-  },
-  itemName: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: SPACING.xs,
-  },
-  itemNotes: {
+  headerSub: {
     fontSize: FONT_SIZE.sm,
-    color: theme.colors.textSecondary,
-    fontStyle: 'italic',
+    color: theme.colors.white,
+    opacity: 0.85,
+    marginTop: 2,
   },
-  itemPrice: {
-    fontSize: FONT_SIZE.md,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginLeft: SPACING.md,
+  refreshBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+
+  // Summary card
   summaryCard: {
     backgroundColor: theme.colors.card,
+    borderRadius: BORDER_RADIUS.lg,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
     padding: SPACING.lg,
     gap: SPACING.sm,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 8,
+      },
+      android: { elevation: 2 },
+    }),
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  summaryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   summaryLabel: {
     fontSize: FONT_SIZE.md,
@@ -500,8 +406,8 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: SPACING.sm,
+    backgroundColor: theme.colors.borderLight,
+    marginVertical: SPACING.xs,
   },
   totalLabel: {
     fontSize: FONT_SIZE.lg,
@@ -510,58 +416,101 @@ const styles = StyleSheet.create({
   },
   totalValue: {
     fontSize: FONT_SIZE.xl,
+    fontWeight: '800',
+  },
+
+  // Items section
+  itemsSectionTitle: {
+    fontSize: FONT_SIZE.sm,
     fontWeight: '700',
+    color: theme.colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+
+  // Item row
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    backgroundColor: theme.colors.card,
+    gap: SPACING.md,
+  },
+  itemRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderLight,
+  },
+  itemQtyBox: {
+    width: 36,
+    height: 36,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: theme.colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  itemQty: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '800',
     color: theme.colors.primary,
   },
-  notesCard: {
-    backgroundColor: theme.colors.card,
-    padding: SPACING.lg,
+  itemInfo: {
+    flex: 1,
+    gap: 3,
   },
-  notesText: {
-    fontSize: FONT_SIZE.md,
-    color: theme.colors.text,
-    lineHeight: 22,
-  },
-  bottomPadding: {
-    height: 100,
-  },
-  footer: {
-    backgroundColor: theme.colors.card,
-    padding: SPACING.lg,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    ...theme.shadows.lg,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    height: BUTTON_HEIGHT.lg,
-    backgroundColor: theme.colors.primary,
-    borderRadius: BORDER_RADIUS.lg,
-  },
-  actionButtonText: {
+  itemName: {
     fontSize: FONT_SIZE.md,
     fontWeight: '600',
-    color: theme.colors.white,
+    color: theme.colors.text,
+    lineHeight: 20,
   },
-  loadingContainer: {
+  itemNote: {
+    fontSize: FONT_SIZE.sm,
+    color: theme.colors.textTertiary,
+    fontStyle: 'italic',
+  },
+  itemPrice: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 5,
+    borderRadius: BORDER_RADIUS.sm,
+    alignSelf: 'flex-start',
+    flexShrink: 0,
+    maxWidth: 120,
+  },
+  statusText: {
+    fontSize: FONT_SIZE.xs,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+
+  // List
+  listContent: {
+    paddingBottom: 40,
+  },
+
+  // States
+  centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: SPACING.md,
+    paddingHorizontal: SPACING.xl,
   },
   loadingText: {
     fontSize: FONT_SIZE.md,
     color: theme.colors.textSecondary,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.md,
   },
   errorTitle: {
     fontSize: FONT_SIZE.xl,
@@ -569,7 +518,7 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     textAlign: 'center',
   },
-  retryButton: {
+  retryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
@@ -577,12 +526,20 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.xl,
     borderRadius: BORDER_RADIUS.lg,
-    marginTop: SPACING.md,
   },
-  retryButtonText: {
+  retryBtnText: {
     fontSize: FONT_SIZE.md,
     fontWeight: '600',
     color: theme.colors.white,
+  },
+  emptyItems: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    gap: SPACING.sm,
+  },
+  emptyItemsText: {
+    fontSize: FONT_SIZE.md,
+    color: theme.colors.textSecondary,
   },
 });
 

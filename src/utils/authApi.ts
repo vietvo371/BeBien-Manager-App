@@ -190,13 +190,18 @@ class AuthApiService {
           device_id: deviceId,
         }
       );
+      console.log('fcmToken', fcmToken);
+      console.log('deviceType', deviceType);
+      console.log('deviceName', deviceName);
+      console.log('deviceId', deviceId);
+      console.log('response', response.data);
 
       if (response.data?.status === true) {
         console.log('[registerDevice] ✅', response.data.message);
         return true;
       }
 
-      console.warn('[registerDevice] ⚠️ server trả về thất bại:', response.data?.message);
+      console.warn('[registerDevice] ⚠️ server trả về thất bại:', response.data);
       return false;
     } catch (error: any) {
       console.warn('[registerDevice] ⚠️ Bỏ qua lỗi đăng ký FCM:', error?.message);
