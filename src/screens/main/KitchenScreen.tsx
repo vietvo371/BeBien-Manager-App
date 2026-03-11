@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -189,9 +189,11 @@ const LoadingView = () => (
 
 const ErrorView = ({ onRetry }: { onRetry: () => void }) => (
   <View style={styles.centered}>
-    <Icon name="wifi-off" size={48} color={theme.colors.textTertiary} />
+    <Icon name="alert-circle-outline" size={56} color={theme.colors.error} />
+    <Text style={styles.errorTitle}>Lỗi kết nối</Text>
     <Text style={styles.stateText}>Không thể tải dữ liệu</Text>
     <TouchableOpacity style={styles.retryBtn} onPress={onRetry} activeOpacity={0.8}>
+      <Icon name="refresh" size={18} color={theme.colors.white} />
       <Text style={styles.retryText}>Thử lại</Text>
     </TouchableOpacity>
   </View>
@@ -214,14 +216,12 @@ const KitchenScreen: React.FC = () => {
     queryKey: ['bepDonMonTheoBan'],
     queryFn: () => orderService.getBepDonMonTheoBan(),
     staleTime: 15_000,
-    refetchInterval: 30_000,
   });
 
   const theoNhomQuery = useQuery({
     queryKey: ['bepXongMonTheoNhom'],
     queryFn: () => orderService.getBepXongMonTheoNhom(),
     staleTime: 15_000,
-    refetchInterval: 30_000,
   });
 
   const banGroups = useMemo(
@@ -280,74 +280,77 @@ const KitchenScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.screen}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <Icon name="chef-hat" size={26} color={theme.colors.white} />
-          <View>
-            <Text style={styles.headerTitle}>Bếp</Text>
-            <Text style={styles.headerSub}>
-              {totalMonCho > 0
-                ? `${totalMonCho} món đang chờ`
-                : 'Không có món chờ'}
-            </Text>
+      {/* ── Header block (header + segment tabs) ── */}
+      <View style={styles.headerBlock}>
+        {/* Top row */}
+        <View style={styles.headerRow}>
+          <View style={styles.headerLeft}>
+            <Icon name="chef-hat" size={22} color="rgba(255,255,255,0.85)" />
+            <View>
+              <Text style={styles.headerTitle}>Bếp</Text>
+              <Text style={styles.headerSub}>
+                {totalMonCho > 0
+                  ? `${totalMonCho} món đang chờ`
+                  : 'Không có món chờ'}
+              </Text>
+            </View>
           </View>
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={handleRefresh}
+            activeOpacity={0.7}
+            disabled={isRefreshing}
+          >
+            <Icon
+              name="refresh"
+              size={20}
+              color={isRefreshing ? 'rgba(255,255,255,0.35)' : theme.colors.white}
+            />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.refreshBtn}
-          onPress={handleRefresh}
-          activeOpacity={0.7}
-          disabled={isRefreshing}
-        >
-          {isRefreshing ? (
-            <ActivityIndicator size="small" color={theme.colors.white} />
-          ) : (
-            <Icon name="refresh" size={22} color={theme.colors.white} />
-          )}
-        </TouchableOpacity>
-      </View>
 
-      {/* ── Tab bar ── */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'theo-ban' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('theo-ban')}
-          activeOpacity={0.8}
-        >
-          <Icon
-            name="table-chair"
-            size={16}
-            color={activeTab === 'theo-ban' ? theme.colors.primary : theme.colors.textSecondary}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'theo-ban' && styles.tabLabelActive]}>
-            Theo bàn
-          </Text>
-          {(theoBanQuery.data?.length ?? 0) > 0 && (
-            <View style={styles.tabCount}>
-              <Text style={styles.tabCountText}>{banGroups.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        {/* Segment tabs */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabItem, activeTab === 'theo-ban' && styles.tabItemActive]}
+            onPress={() => setActiveTab('theo-ban')}
+            activeOpacity={0.75}
+          >
+            <Icon
+              name="table-chair"
+              size={14}
+              color={activeTab === 'theo-ban' ? KITCHEN_COLOR : 'rgba(255,255,255,0.6)'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'theo-ban' && styles.tabLabelActive]}>
+              Theo bàn
+            </Text>
+            {(theoBanQuery.data?.length ?? 0) > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{banGroups.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'theo-nhom' && styles.tabBtnActive]}
-          onPress={() => setActiveTab('theo-nhom')}
-          activeOpacity={0.8}
-        >
-          <Icon
-            name="food-variant"
-            size={16}
-            color={activeTab === 'theo-nhom' ? theme.colors.primary : theme.colors.textSecondary}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'theo-nhom' && styles.tabLabelActive]}>
-            Theo nhóm
-          </Text>
-          {nhomList.length > 0 && (
-            <View style={styles.tabCount}>
-              <Text style={styles.tabCountText}>{nhomList.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabItem, activeTab === 'theo-nhom' && styles.tabItemActive]}
+            onPress={() => setActiveTab('theo-nhom')}
+            activeOpacity={0.75}
+          >
+            <Icon
+              name="food-variant"
+              size={14}
+              color={activeTab === 'theo-nhom' ? KITCHEN_COLOR : 'rgba(255,255,255,0.6)'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'theo-nhom' && styles.tabLabelActive]}>
+              Theo nhóm
+            </Text>
+            {nhomList.length > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{nhomList.length}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── Content ── */}
@@ -402,108 +405,117 @@ export default KitchenScreen;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+const KITCHEN_COLOR  = theme.colors.primary;
+const KITCHEN_LIGHT  = theme.colors.primaryLight;
+const KITCHEN_BORDER = theme.colors.primaryLight;
+const KITCHEN_DARK   = theme.colors.primaryDark;
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: theme.colors.background,
   },
 
-  // Header
-  header: {
+  // ── Header block (header + segment tabs unified) ──────────────────────────
+  headerBlock: {
+    backgroundColor: KITCHEN_COLOR,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    gap: SPACING.md,
+    ...Platform.select({
+      ios: {
+        shadowColor: KITCHEN_COLOR,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+      },
+      android: { elevation: 8 },
+    }),
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#D97706',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-      },
-      android: { elevation: 4 },
-    }),
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm,
+    gap: SPACING.md,
+    flex: 1,
   },
   headerTitle: {
     fontSize: FONT_SIZE.xl,
     fontWeight: '800',
     color: theme.colors.white,
-    lineHeight: 24,
+    letterSpacing: 0.2,
   },
   headerSub: {
     fontSize: FONT_SIZE.xs,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '500',
+    color: 'rgba(255,255,255,0.65)',
+    marginTop: 2,
   },
   refreshBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Tab bar
-  tabBar: {
+  // ── Segment tabs (inside header block) ───────────────────────────────────
+  tabContainer: {
     flexDirection: 'row',
-    backgroundColor: theme.colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderLight,
-    paddingHorizontal: SPACING.md,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: BORDER_RADIUS.lg,
+    padding: 3,
   },
-  tabBtn: {
+  tabItem: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: SPACING.xs,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    paddingVertical: 9,
+    borderRadius: BORDER_RADIUS.md,
+    gap: 4,
   },
-  tabBtnActive: {
-    borderBottomColor: theme.colors.primary,
+  tabItemActive: {
+    backgroundColor: theme.colors.white,
   },
   tabLabel: {
-    fontSize: FONT_SIZE.sm,
+    fontSize: FONT_SIZE.xs,
     fontWeight: '600',
-    color: theme.colors.textSecondary,
+    color: 'rgba(255,255,255,0.65)',
   },
   tabLabelActive: {
-    color: theme.colors.primary,
-    fontWeight: '700',
+    color: KITCHEN_COLOR,
   },
-  tabCount: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: theme.colors.error,
+  tabBadge: {
+    backgroundColor: theme.colors.warning,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
   },
-  tabCountText: {
-    fontSize: 11,
-    fontWeight: '700',
+  tabBadgeText: {
     color: theme.colors.white,
+    fontSize: 9,
+    fontWeight: '800',
   },
 
-  // List
+  // ── List ──────────────────────────────────────────────────────────────────
   listContent: {
     padding: SPACING.md,
     gap: SPACING.md,
     flexGrow: 1,
   },
 
-  // Theo bàn — BanGroupCard
+  // ── BanGroupCard ──────────────────────────────────────────────────────────
   banCard: {
     backgroundColor: theme.colors.white,
     borderRadius: BORDER_RADIUS.lg,
@@ -521,7 +533,7 @@ const styles = StyleSheet.create({
   banCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: KITCHEN_LIGHT,
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.sm,
     gap: SPACING.sm,
@@ -530,7 +542,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#D97706',
+    backgroundColor: KITCHEN_COLOR,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -538,10 +550,10 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FONT_SIZE.md,
     fontWeight: '700',
-    color: '#92400E',
+    color: KITCHEN_DARK,
   },
   banBadge: {
-    backgroundColor: '#D97706',
+    backgroundColor: KITCHEN_COLOR,
     borderRadius: BORDER_RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
@@ -566,16 +578,16 @@ const styles = StyleSheet.create({
     minWidth: 36,
     height: 36,
     borderRadius: BORDER_RADIUS.sm,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: KITCHEN_LIGHT,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: KITCHEN_BORDER,
   },
   banQty: {
     fontSize: FONT_SIZE.sm,
     fontWeight: '800',
-    color: '#D97706',
+    color: KITCHEN_COLOR,
   },
   banItemInfo: {
     flex: 1,
@@ -615,7 +627,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Theo nhóm — NhomCard
+  // ── NhomCard ──────────────────────────────────────────────────────────────
   nhomCard: {
     backgroundColor: theme.colors.white,
     borderRadius: BORDER_RADIUS.lg,
@@ -640,7 +652,7 @@ const styles = StyleSheet.create({
     minWidth: 40,
     height: 40,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: theme.colors.primary,
+    backgroundColor: KITCHEN_COLOR,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: SPACING.sm,
@@ -667,7 +679,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: KITCHEN_LIGHT,
     borderRadius: BORDER_RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
@@ -676,7 +688,7 @@ const styles = StyleSheet.create({
   nhomTagText: {
     fontSize: FONT_SIZE.xs,
     fontWeight: '700',
-    color: '#D97706',
+    color: KITCHEN_COLOR,
   },
   nhomDistRow: {
     flexDirection: 'row',
@@ -691,7 +703,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  // States
+  // ── States ────────────────────────────────────────────────────────────────
   centered: {
     flex: 1,
     justifyContent: 'center',
@@ -701,9 +713,15 @@ const styles = StyleSheet.create({
     minHeight: 300,
   },
   emptyTitle: {
-    fontSize: FONT_SIZE.lg,
+    fontSize: FONT_SIZE.xl,
     fontWeight: '700',
     color: theme.colors.success,
+  },
+  errorTitle: {
+    fontSize: FONT_SIZE.xl,
+    fontWeight: '700',
+    color: theme.colors.text,
+    textAlign: 'center',
   },
   stateText: {
     fontSize: FONT_SIZE.md,
@@ -711,14 +729,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   retryBtn: {
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
     backgroundColor: theme.colors.primary,
-    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: 10,
+    marginTop: SPACING.sm,
   },
   retryText: {
     fontSize: FONT_SIZE.md,
-    fontWeight: '700',
+    fontWeight: '600',
     color: theme.colors.white,
   },
 });

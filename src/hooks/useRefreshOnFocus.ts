@@ -10,7 +10,7 @@ import { useFocusEffect } from '@react-navigation/native';
  */
 export function useRefreshOnFocus(
   refetch: () => void,
-  delay: number = 3000,
+  delay: number = 5000,
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
