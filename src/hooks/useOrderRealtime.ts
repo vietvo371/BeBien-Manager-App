@@ -7,10 +7,6 @@ import {
 } from '@react-native-firebase/messaging';
 import { getApp } from '@react-native-firebase/app';
 
-interface OrderNotificationData {
-  type?: string;
-  order_id?: number;
-}
 
 export function useOrderRealtime() {
   const queryClient = useQueryClient();
@@ -20,20 +16,25 @@ export function useOrderRealtime() {
     const messagingInstance = getMessaging(getApp());
 
     // Chỉ xử lý query invalidation — KHÔNG display notification ở đây
-    // Việc display đã do NotificationService.tsx → setupNotificationListeners() lo
+    // Việc display + routing đã do NotificationService.tsx lo
+    // Hook này là fallback đảm bảo data luôn fresh khi app đang mở
     const unsubscribeForeground = onMessage(messagingInstance, (remoteMessage) => {
-      const data = remoteMessage.data as unknown as OrderNotificationData;
-      if (data?.type?.includes('order')) {
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        if (data.order_id) {
-          queryClient.invalidateQueries({ queryKey: ['order', data.order_id] });
-        }
+      const type = remoteMessage.data?.type as string | undefined;
+
+      if (type === 'xoa_mon') {
+        queryClient.invalidateQueries({ queryKey: ['cancel-items'] });
+      } else if (type?.startsWith('hoa_don') || type?.startsWith('order')) {
+        queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+      } else if (type?.startsWith('bep')) {
+        queryClient.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
+        queryClient.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
+      } else {
+        // Không rõ type → refresh tất cả
+        queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+        queryClient.invalidateQueries({ queryKey: ['cancel-items'] });
+        queryClient.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
+        queryClient.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
       }
-      // Invalidate các query liên quan khi nhận bất kỳ FCM nào
-      queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
-      queryClient.invalidateQueries({ queryKey: ['cancel-items'] });
-      queryClient.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
-      queryClient.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
     });
 
     const handleAppStateChange = (nextAppState: AppStateStatus) => {

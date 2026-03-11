@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { orderService } from '../../services/orderService';
 import { BepDonMonTheoBan, BepXongMonTheoNhom } from '../../types/order.types';
+import { useRefreshOnFocus } from '../../hooks/useRefreshOnFocus';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -247,6 +248,12 @@ const KitchenScreen: React.FC = () => {
     theoBanQuery.refetch();
     theoNhomQuery.refetch();
   }, [theoBanQuery, theoNhomQuery]);
+
+  // Sau 5s focus → refresh cả 2 tab
+  useRefreshOnFocus(useCallback(() => {
+    theoBanQuery.refetch();
+    theoNhomQuery.refetch();
+  }, [theoBanQuery, theoNhomQuery]));
 
   // ─── Render helpers ────────────────────────────────────────────────────────
 

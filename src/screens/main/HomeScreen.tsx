@@ -17,6 +17,7 @@ import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { orderService } from '../../services/orderService';
 import { PendingCancelItem, parse422Error } from '../../types/order.types';
 import { useOrderRealtime } from '../../hooks/useOrderRealtime';
+import { useRefreshOnFocus } from '../../hooks/useRefreshOnFocus';
 import { ApprovalCard } from '../../components/orders/ApprovalCard';
 import { ResolvedCard } from '../../components/orders/ResolvedCard';
 import CustomAlert, { AlertType, AlertButton } from '../../component/CustomAlert';
@@ -75,6 +76,12 @@ const HomeScreen: React.FC = () => {
     const rejectedItems = rejectedQuery.data || [];
 
     const activeQuery = activeTab === 'pending' ? pendingQuery : rejectedQuery;
+
+    // Sau 5s focus → refresh cả 2 query
+    useRefreshOnFocus(useCallback(() => {
+        pendingQuery.refetch();
+        rejectedQuery.refetch();
+    }, [pendingQuery, rejectedQuery]));
     const activeItems = activeTab === 'pending' ? pendingItems : rejectedItems;
 
     // ── Mutation ─────────────────────────────────────────────────────────────

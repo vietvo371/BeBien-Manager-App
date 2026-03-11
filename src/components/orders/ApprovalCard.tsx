@@ -32,11 +32,11 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
         <View style={styles.card}>
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <Text style={styles.orderCode}>#{item.ma_hoa_don}</Text>
                     <View style={styles.tableTag}>
                         <Icon name="table-chair" size={14} color={theme.colors.primary} />
                         <Text style={styles.tableText}>{item.ten_ban}</Text>
                     </View>
+                    <Text style={styles.orderCode}>#{item.ma_hoa_don}</Text>
                 </View>
                 <View style={styles.statusBadge}>
                     <Icon name="alert-circle" size={16} color={theme.colors.warning} />
@@ -120,9 +120,9 @@ const styles = StyleSheet.create({
         gap: SPACING.sm,
     },
     orderCode: {
-        fontSize: FONT_SIZE.lg,
-        fontWeight: '700',
-        color: theme.colors.text,
+        fontSize: FONT_SIZE.xs,
+        fontWeight: '500',
+        color: theme.colors.textSecondary,
     },
     tableTag: {
         flexDirection: 'row',
@@ -134,8 +134,8 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     tableText: {
-        fontSize: FONT_SIZE.xs,
-        fontWeight: '600',
+        fontSize: FONT_SIZE.md,
+        fontWeight: '700',
         color: theme.colors.primary,
     },
     statusBadge: {

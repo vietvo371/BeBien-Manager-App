@@ -350,6 +350,8 @@ const OrderDetailScreen: React.FC = () => {
         idBan={idBan}
         tenBan={tenBan}
         tongTien={tongTien}
+        tienGiamGia={tienGiamGia}
+        phanTramGiamGia={phanTramGiamGia}
         items={items ?? []}
         onClose={() => setBillModalVisible(false)}
       />

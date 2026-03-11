@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Platform, AppState, AppStateStatus, Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceInfo from 'react-native-device-info';
+import { QueryClient } from '@tanstack/react-query';
 import {
   setupNotificationListeners,
   getFCMToken,
@@ -21,6 +22,49 @@ import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../utils/authApi';
 import Toast from 'react-native-toast-message';
 import * as NavigationService from '../navigation/NavigationService';
+import { queryClient as globalQueryClient } from '../config/queryClient';
+
+// ─── Notification type routing ────────────────────────────────────────────────
+
+/**
+ * Các loại notification từ server và tab đích tương ứng.
+ * type = xoa_mon        → HomeScreen (Duyệt huỷ)
+ * type = hoa_don_*      → OrderScreen
+ * type = bep_*          → KitchenScreen
+ */
+type NotifType = string | undefined;
+
+const getTargetTab = (type: NotifType): 'Home' | 'Order' | 'Kitchen' => {
+  if (!type) return 'Home';
+  if (type === 'xoa_mon')             return 'Home';
+  if (type.startsWith('hoa_don') || type.startsWith('order')) return 'Order';
+  if (type.startsWith('bep'))         return 'Kitchen';
+  return 'Home';
+};
+
+/**
+ * Invalidate đúng React Query keys theo notification type.
+ */
+const invalidateByType = (qc: QueryClient, type: NotifType) => {
+  if (type === 'xoa_mon') {
+    qc.invalidateQueries({ queryKey: ['cancel-items'] });
+    return;
+  }
+  if (type?.startsWith('hoa_don') || type?.startsWith('order')) {
+    qc.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+    return;
+  }
+  if (type?.startsWith('bep')) {
+    qc.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
+    qc.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
+    return;
+  }
+  // Fallback: refresh tất cả
+  qc.invalidateQueries({ queryKey: ['cancel-items'] });
+  qc.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+  qc.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
+  qc.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
+};
 
 // Key lưu FCM token đã đăng ký thành công lần cuối
 const LAST_REGISTERED_FCM_KEY = '@last_registered_fcm_token';
@@ -201,16 +245,26 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
   const handleNotifeeEvent = async (type: any, detail: any) => {
     if (!notifee || !EventType) return;
     if (type === EventType.PRESS) {
-      navigateToNotificationScreen();
+      const notifType = detail.notification?.data?.type as NotifType;
+      navigateByType(notifType);
       onNotificationOpened?.(detail.notification);
     }
   };
 
+  /**
+   * Foreground: hiện banner + invalidate query đúng key.
+   * KHÔNG navigate — người dùng đang dùng app, chỉ cần data tự động refresh.
+   */
   const handleForegroundNotification = async (notification: any) => {
-    const title = notification.notification?.title || 'Thông báo mới';
-    const body  = notification.notification?.body  || '';
-    const data  = notification.data as Record<string, string> | undefined;
+    const title    = notification.notification?.title || 'Thông báo mới';
+    const body     = notification.notification?.body  || '';
+    const data     = notification.data as Record<string, string> | undefined;
+    const notifType: NotifType = data?.type;
 
+    // Invalidate query tương ứng ngay lập tức
+    invalidateByType(globalQueryClient, notifType);
+
+    // Hiện banner
     if (notifee) {
       await displayLocalNotification(title, body, data);
     } else {
@@ -222,21 +276,31 @@ const NotificationService: React.FC<NotificationServiceProps> = ({
         visibilityTime: 4000,
         autoHide: true,
         topOffset: 50,
-        onPress: () => onNotificationOpened?.(notification),
+        onPress: () => {
+          navigateByType(notifType);
+          onNotificationOpened?.(notification);
+        },
       });
     }
 
     onNotification?.(notification);
   };
 
+  /**
+   * Background / Quit: người dùng tap vào notification → navigate đến đúng tab.
+   */
   const handleNotificationOpened = (notification: any) => {
-    navigateToNotificationScreen();
+    const notifType: NotifType = notification?.data?.type;
+    // Delay nhỏ để navigation stack sẵn sàng (đặc biệt khi app vừa mở từ quit)
+    setTimeout(() => navigateByType(notifType), 500);
     onNotificationOpened?.(notification);
   };
 
-  const navigateToNotificationScreen = () => {
+  const navigateByType = (type: NotifType) => {
     try {
-      NavigationService.navigate('Home' as any);
+      const tab = getTargetTab(type);
+      NavigationService.navigate('MainTabs' as any, { screen: tab });
+      console.log(`🧭 Navigate to tab: ${tab} (type: ${type})`);
     } catch (error) {
       console.error('❌ Error navigating:', error);
     }

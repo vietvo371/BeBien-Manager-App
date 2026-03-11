@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -34,6 +34,8 @@ interface BillPreviewModalProps {
   idBan: number;
   tenBan: string;
   tongTien: string;
+  tienGiamGia?: string;
+  phanTramGiamGia?: string;
   items: HoaDonChiTietItem[];
   onClose: () => void;
   onSuccess?: () => void;
@@ -47,6 +49,8 @@ export const BillPreviewModal: React.FC<BillPreviewModalProps> = ({
   idBan,
   tenBan,
   tongTien,
+  tienGiamGia,
+  phanTramGiamGia,
   items,
   onClose,
   onSuccess,
@@ -54,8 +58,24 @@ export const BillPreviewModal: React.FC<BillPreviewModalProps> = ({
   const queryClient = useQueryClient();
   const baseTong = Number(tongTien);
 
-  const [phanTramStr, setPhanTramStr] = useState('0');
-  const [tienGiamStr, setTienGiamStr] = useState('0');
+  const [phanTramStr, setPhanTramStr] = useState(() => {
+    const v = parseFloat(phanTramGiamGia ?? '0') || 0;
+    return v > 0 ? String(v) : '0';
+  });
+  const [tienGiamStr, setTienGiamStr] = useState(() => {
+    const v = parseFloat(tienGiamGia ?? '0') || 0;
+    return v > 0 ? String(v) : '0';
+  });
+
+  // Khi modal mở lại, đồng bộ lại giá trị giảm giá mới nhất từ props
+  useEffect(() => {
+    if (visible) {
+      const pct = parseFloat(phanTramGiamGia ?? '0') || 0;
+      const tien = parseFloat(tienGiamGia ?? '0') || 0;
+      setPhanTramStr(pct > 0 ? String(pct) : '0');
+      setTienGiamStr(tien > 0 ? String(tien) : '0');
+    }
+  }, [visible, phanTramGiamGia, tienGiamGia]);
 
   // linked inputs: pct ↔ amount
   const handlePhanTramChange = useCallback(

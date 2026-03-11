@@ -20,6 +20,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { useOrderRealtime } from '../../hooks/useOrderRealtime';
+import { useRefreshOnFocus } from '../../hooks/useRefreshOnFocus';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -131,6 +132,8 @@ const OrderScreen: React.FC = () => {
     queryFn: () => orderService.getHoaDonOpen(),
     staleTime: 30_000,
   });
+
+  useRefreshOnFocus(refetch);
 
   const { pending, done } = useMemo(() => {
     const list = data?.data ?? [];
