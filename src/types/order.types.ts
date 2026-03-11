@@ -161,6 +161,39 @@ export interface HoaDonOpenListResponse {
   doanh_thu: number;
 }
 
+// ─── Mặt hàng có thể order ────────────────────────────────────────────────────
+
+/** GET /api/nguoi-kiem-duyet/mat-hang-order */
+export interface MatHangOrder {
+  id: number;
+  ten_mat_hang: string;
+  don_gia_ban: string;
+  is_order: 0 | 1;
+  is_view: 0 | 1;
+  ten_don_vi: string;
+}
+
+export interface MatHangOrderResponse {
+  data: MatHangOrder[];
+}
+
+export interface CreateOrderItem {
+  id: number;
+  so_luong: number;
+  ghi_chu?: string;
+}
+
+/** POST /api/nguoi-kiem-duyet/mat-hang-order/create */
+export interface CreateOrderRequest {
+  id_hoa_don: number;
+  data: CreateOrderItem[];
+}
+
+export interface CreateOrderResponse {
+  status: boolean;
+  message: string;
+}
+
 // ─── Chi tiết món của hóa đơn ─────────────────────────────────────────────────
 
 /**
@@ -186,6 +219,59 @@ export interface HoaDonChiTietItem {
 
 export interface HoaDonChiTietResponse {
   data: HoaDonChiTietItem[];
+}
+
+// ─── Bếp ──────────────────────────────────────────────────────────────────────
+
+/** GET /api/nguoi-kiem-duyet/bep/don-mon-theo-ban — món đang chờ chế biến, nhóm theo bàn */
+export interface BepDonMonTheoBan {
+  ban: string;
+  id: number;           // ID hóa đơn
+  id_mat_hang: number;
+  so_luong: string;
+  ghi_chu?: string;
+  ten_mat_hang: string;
+  id_chi_tiet: number;  // ID chi_tiet_ban_hangs
+  ten_don_vi: string;
+  updated_at?: string;  // ISO datetime — tính thời gian chờ
+}
+
+export interface BepDonMonTheoBanResponse {
+  data: BepDonMonTheoBan[];
+}
+
+/** GET /api/nguoi-kiem-duyet/bep/don-mon-theo-nhom — tổng hợp theo tên món */
+export interface BepXongMonTheoNhom {
+  ten_mat_hang: string;
+  id_mat_hang: number;
+  is_nhom_che_bien: 0 | 1;
+  tong_so_luong: string;
+  ten_ban_tong_so_luong: string; // vd: "Bàn 01: 2 (Phần); Bàn 02: 1 (Phần)"
+  chi_tiet_ban_hang_ids: string; // vd: "101, 105"
+  updated_at?: string;           // ISO datetime — tính thời gian chờ sớm nhất
+}
+
+export interface BepXongMonTheoNhomResponse {
+  data: BepXongMonTheoNhom[];
+}
+
+// ─── Cập nhật giảm giá / change-in-dò ────────────────────────────────────────
+
+/** POST /api/nguoi-kiem-duyet/cap-nhat-giam-gia */
+export interface CapNhatGiamGiaRequest {
+  id: number;                 // ID hóa đơn
+  phan_tram_giam_gia: number; // 0–100
+  tien_giam_gia: number;      // >= 0
+}
+
+/** POST /api/nguoi-kiem-duyet/change-in-do */
+export interface ChangeInDoRequest {
+  id_ban: number; // ID bàn — server tự tìm hóa đơn và bắn lệnh in qua WebSocket
+}
+
+export interface SimpleApiResponse {
+  status: boolean;
+  message: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

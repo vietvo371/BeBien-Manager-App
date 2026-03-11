@@ -19,6 +19,17 @@ import {
   HoaDonOpenListResponse,
   HoaDonChiTietItem,
   HoaDonChiTietResponse,
+  MatHangOrder,
+  MatHangOrderResponse,
+  CreateOrderRequest,
+  CreateOrderResponse,
+  CapNhatGiamGiaRequest,
+  ChangeInDoRequest,
+  SimpleApiResponse,
+  BepDonMonTheoBan,
+  BepDonMonTheoBanResponse,
+  BepXongMonTheoNhom,
+  BepXongMonTheoNhomResponse,
 } from '../types/order.types';
 import { generateMockOrders } from '../utils/mockOrderData';
 
@@ -332,6 +343,87 @@ class OrderService {
       `/nguoi-kiem-duyet/hoa-don-open/chi-tiet/${idHoaDon}`
     );
     console.log(' getHoaDonChiTiet nguoi-kiem-duyet/hoa-don-open/chi-tiet/${idHoaDon}', idHoaDon);
+    console.log('response', response);
+    return response.data?.data ?? [];
+  }
+
+  /**
+   * Danh sách mặt hàng có thể order.
+   * GET /api/nguoi-kiem-duyet/mat-hang-order
+   */
+  async getMatHangOrder(): Promise<MatHangOrder[]> {
+    const response = await api.get<MatHangOrderResponse>(
+      '/nguoi-kiem-duyet/mat-hang-order'
+    );
+    console.log(' getMatHangOrder nguoi-kiem-duyet/mat-hang-order');
+    console.log('response', response);
+    return response.data?.data ?? [];
+  }
+
+  /**
+   * Order danh sách mặt hàng cho một hóa đơn.
+   * POST /api/nguoi-kiem-duyet/mat-hang-order/create
+   */
+  async createOrderItems(request: CreateOrderRequest): Promise<CreateOrderResponse> {
+    const response = await api.post<CreateOrderResponse>(
+      '/nguoi-kiem-duyet/mat-hang-order/create',
+      request
+    );
+    console.log(' createOrderItems nguoi-kiem-duyet/mat-hang-order/create', request);
+    console.log('response', response);
+    return response.data;
+  }
+
+  /**
+   * Cập nhật giảm giá hóa đơn.
+   * POST /api/nguoi-kiem-duyet/cap-nhat-giam-gia
+   */
+  async capNhatGiamGia(request: CapNhatGiamGiaRequest): Promise<SimpleApiResponse> {
+    const response = await api.post<SimpleApiResponse>(
+      '/nguoi-kiem-duyet/cap-nhat-giam-gia',
+      request
+    );
+    console.log(' capNhatGiamGia nguoi-kiem-duyet/cap-nhat-giam-gia', request);
+    console.log('response', response);
+    return response.data;
+  }
+
+  /**
+   * Thay đổi trạng thái in dò của một dòng chi tiết bán hàng.
+   * POST /api/nguoi-kiem-duyet/change-in-do
+   */
+  async changeInDo(request: ChangeInDoRequest): Promise<SimpleApiResponse> {
+    const response = await api.post<SimpleApiResponse>(
+      '/nguoi-kiem-duyet/change-in-do',
+      request
+    );
+    console.log(' changeInDo nguoi-kiem-duyet/change-in-do', request);
+    console.log('response', response);
+    return response.data;
+  }
+
+  /**
+   * Danh sách món bếp đang chờ chế biến, phân theo bàn.
+   * GET /api/nguoi-kiem-duyet/bep/don-mon-theo-ban
+   */
+  async getBepDonMonTheoBan(): Promise<BepDonMonTheoBan[]> {
+    const response = await api.get<BepDonMonTheoBanResponse>(
+      '/nguoi-kiem-duyet/bep/don-mon-theo-ban'
+    );
+    console.log(' getBepDonMonTheoBan nguoi-kiem-duyet/bep/don-mon-theo-ban');
+    console.log('response', response);
+    return response.data?.data ?? [];
+  }
+
+  /**
+   * Tổng hợp món bếp theo nhóm (tên món).
+   * GET /api/nguoi-kiem-duyet/bep/don-mon-theo-nhom
+   */
+  async getBepXongMonTheoNhom(): Promise<BepXongMonTheoNhom[]> {
+    const response = await api.get<BepXongMonTheoNhomResponse>(
+      '/nguoi-kiem-duyet/bep/don-mon-theo-nhom'
+    );
+    console.log(' getBepXongMonTheoNhom nguoi-kiem-duyet/bep/don-mon-theo-nhom');
     console.log('response', response);
     return response.data?.data ?? [];
   }

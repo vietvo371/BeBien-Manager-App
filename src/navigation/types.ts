@@ -5,6 +5,7 @@ import { NavigatorScreenParams } from '@react-navigation/native';
 export type MainTabParamList = {
   Home: undefined;
   Order: undefined;
+  Kitchen: undefined;
   Profile: undefined;
 };
 
@@ -14,6 +15,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList>;
   OrderDetail: {
     idHoaDon: number;
+    idBan: number;
     tenBan: string;
     thoiGianVao: string;
     tongTien: string;

@@ -143,6 +143,7 @@ const OrderScreen: React.FC = () => {
     (item: HoaDonOpen) => {
       navigation.navigate('OrderDetail', {
         idHoaDon: item.id,
+        idBan: item.id_ban,
         tenBan: item.ten_ban,
         thoiGianVao: item.thoi_gian_vao,
         tongTien: String(item.tong_tien),

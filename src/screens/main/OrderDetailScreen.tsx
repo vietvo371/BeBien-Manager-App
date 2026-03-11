@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { useQuery } from '@tanstack/react-query';
 import { orderService } from '../../services/orderService';
 import { HoaDonChiTietItem } from '../../types/order.types';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { AddItemBottomSheet } from '../../components/orders/AddItemBottomSheet';
+import { BillPreviewModal } from '../../components/orders/BillPreviewModal';
 
 type DetailRoute = RouteProp<RootStackParamList, 'OrderDetail'>;
 type DetailNav = NativeStackNavigationProp<RootStackParamList, 'OrderDetail'>;
@@ -75,8 +77,9 @@ const getItemStatus = (item: HoaDonChiTietItem, thoiGianVao: string): ItemStatus
       icon: 'chef-hat',
     };
   }
+  const elapsed = formatElapsed(thoiGianVao);
   return {
-    label: 'Xong',
+    label: `Xong · ${elapsed}`,
     color: theme.colors.success,
     bg: theme.colors.successLight,
     icon: 'check-circle-outline',
@@ -132,6 +135,7 @@ const OrderDetailScreen: React.FC = () => {
   const navigation = useNavigation<DetailNav>();
   const {
     idHoaDon,
+    idBan,
     tenBan,
     thoiGianVao,
     tongTien,
@@ -140,6 +144,9 @@ const OrderDetailScreen: React.FC = () => {
     tienGiamGia,
     phanTramGiamGia,
   } = route.params;
+
+  const [addSheetVisible, setAddSheetVisible] = useState(false);
+  const [billModalVisible, setBillModalVisible] = useState(false);
 
   const { data: items, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['hoaDonChiTiet', idHoaDon],
@@ -303,6 +310,49 @@ const OrderDetailScreen: React.FC = () => {
           }
         />
       )}
+
+      {/* FAB row — Thêm món + In Bill Dò */}
+      {!isLoading && !isError && (
+        <View style={styles.fabRow}>
+          <TouchableOpacity
+            style={[styles.fabBtn, styles.fabBtnSecondary]}
+            onPress={() => setBillModalVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Icon name="printer-outline" size={20} color={theme.colors.error} />
+            <Text style={[styles.fabBtnText, { color: theme.colors.error }]}>In Bill Dò</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.fabBtn, styles.fabBtnPrimary]}
+            onPress={() => setAddSheetVisible(true)}
+            activeOpacity={0.85}
+          >
+            <Icon name="plus" size={20} color={theme.colors.white} />
+            <Text style={[styles.fabBtnText, { color: theme.colors.white }]}>Thêm món</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Bottom sheet thêm món */}
+      <AddItemBottomSheet
+        visible={addSheetVisible}
+        idHoaDon={idHoaDon}
+        tenBan={tenBan}
+        onClose={() => setAddSheetVisible(false)}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Modal xác nhận in bill dò */}
+      <BillPreviewModal
+        visible={billModalVisible}
+        idHoaDon={idHoaDon}
+        idBan={idBan}
+        tenBan={tenBan}
+        tongTien={tongTien}
+        items={items ?? []}
+        onClose={() => setBillModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -487,7 +537,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
     alignSelf: 'flex-start',
     flexShrink: 0,
-    maxWidth: 120,
+    maxWidth: 130,
   },
   statusText: {
     fontSize: FONT_SIZE.xs,
@@ -540,6 +590,53 @@ const styles = StyleSheet.create({
   emptyItemsText: {
     fontSize: FONT_SIZE.md,
     color: theme.colors.textSecondary,
+  },
+
+  // FAB row
+  fabRow: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 34 : 20,
+    left: SPACING.lg,
+    right: SPACING.lg,
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  fabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 28,
+    gap: SPACING.sm,
+    ...Platform.select({
+      ios: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 10,
+      },
+      android: { elevation: 7 },
+    }),
+  },
+  fabBtnPrimary: {
+    backgroundColor: theme.colors.primary,
+    ...Platform.select({
+      ios: { shadowColor: theme.colors.primary },
+      android: {},
+    }),
+  },
+  fabBtnSecondary: {
+    backgroundColor: theme.colors.white,
+    borderWidth: 1.5,
+    borderColor: theme.colors.error,
+    ...Platform.select({
+      ios: { shadowColor: '#000' },
+      android: {},
+    }),
+  },
+  fabBtnText: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '700',
   },
 });
 

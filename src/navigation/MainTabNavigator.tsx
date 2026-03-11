@@ -14,6 +14,7 @@ import LoginScreen from '../screens/auth/LoginScreen';
 // Main tab screens
 import HomeScreen from '../screens/main/HomeScreen';
 import OrderScreen from '../screens/main/OrderScreen';
+import KitchenScreen from '../screens/main/KitchenScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import OrderDetailScreen from '../screens/main/OrderDetailScreen';
 
@@ -85,6 +86,16 @@ const MainTabs = () => {
                 size={TAB_BAR.iconSize}
                 color={color}
               />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Kitchen"
+          component={KitchenScreen}
+          options={{
+            title: 'Bếp',
+            tabBarIcon: ({ color }) => (
+              <Icon name="chef-hat" size={TAB_BAR.iconSize} color={color} />
             ),
           }}
         />
