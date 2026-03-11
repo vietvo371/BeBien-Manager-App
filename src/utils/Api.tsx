@@ -1,9 +1,8 @@
 import axios from "axios";
-import { Platform } from 'react-native';
-import { getToken, removeToken, saveToken } from "./TokenManager";
-import { navigate, resetTo } from "../navigation/NavigationService";
+import { Alert } from 'react-native';
+import { getToken, removeToken } from "./TokenManager";
+import { resetTo } from "../navigation/NavigationService";
 import i18n from '../i18n';
-import { ErrorModalManager } from './ErrorModalManager.tsx';
 import env from '../config/env.ts';
 
 // Types
@@ -112,13 +111,13 @@ const MAX_RETRY_ATTEMPTS = 2;
 
 const shouldRetry = (error: any, retryCount: number) => {
   if (retryCount >= MAX_RETRY_ATTEMPTS) return false;
-  if (error.response?.status === 422) return false;
+  if (error.response?.status === 401) return false; // token hết hạn, retry vô nghĩa
   if (error.response?.status === 403) return false;
+  if (error.response?.status === 422) return false;
   return (
     !error.response ||
     error.code === 'ECONNABORTED' ||
     /timeout/i.test(error.message) ||
-    error.response.status === 401 ||
     (error.response.status >= 500 && error.response.status <= 599)
   );
 };
@@ -140,41 +139,55 @@ api.interceptors.response.use(
       return api(config);
     }
 
-    // Timeout error: Logout + Reset to Login
+    // Timeout error
     if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message)) {
-      console.log('⏱️ Timeout after retries:', error);
+      console.warn('⏱️ Timeout after retries:', error);
       if (!isShowingAuthAlert) {
         isShowingAuthAlert = true;
-        ErrorModalManager.showTimeoutError(() => {
-          isShowingAuthAlert = false;
-        });
+        Alert.alert(
+          'Yêu cầu quá thời gian chờ',
+          'Không thể kết nối đến máy chủ. Vui lòng thử lại.',
+          [{ text: 'OK', style: 'default', onPress: () => { isShowingAuthAlert = false; } }]
+        );
       }
       return Promise.reject(error);
     }
 
     // Validation error: Let form handle it
     if (error.response?.status === 422) {
-      console.log('error', error);
       return Promise.reject(error);
     }
 
     // Auth errors: Logout + Reset to Login
     if (error.response?.status === 401 || error.response?.status === 403) {
-      console.log('error', error);
+      const status = error.response.status;
+      console.log('error', error.response?.data);
+      console.warn(status === 401 ? '🔒 Session expired (401)' : '🚫 Access denied (403)');
       if (!isShowingAuthAlert) {
         isShowingAuthAlert = true;
-
-        if (error.response?.status === 401) {
-          console.log('🔒 Session expired (401)');
-          ErrorModalManager.showSessionExpired(() => {
-            isShowingAuthAlert = false;
-          });
-        } else {
-          console.log('🚫 Access denied (403)');
-          ErrorModalManager.showAccessDenied(() => {
-            isShowingAuthAlert = false;
-          });
-        }
+        // Alert native — độc lập với React tree, không phụ thuộc context
+        // delay 300ms để modal/bottom-sheet đang mở kịp đóng
+        setTimeout(() => {
+          Alert.alert(
+            status === 401 ? 'Phiên đăng nhập hết hạn hoặc không có quyền truy cập' : 'Không có quyền truy cập',
+            error.response?.data?.message || error.response?.data?.errors?.message?.[0] || 'Phiên làm việc của bạn đã hết hạn. Vui lòng đăng nhập lại.'
+            ,status === 401 ? [{
+              text: 'OK',
+              style: 'default',
+              onPress: () => {
+                isShowingAuthAlert = false;
+              },
+            }] : [{
+              text: 'Đăng nhập lại',
+              style: 'default',
+              onPress: () => {
+                isShowingAuthAlert = false;
+                removeToken();
+                resetTo('Login');
+              },
+            }]
+          );
+        }, 300);
       }
       return Promise.reject(error);
     }

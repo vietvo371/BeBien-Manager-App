@@ -42,6 +42,8 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
 }) => {
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
+    // isMounted: dùng để unmount khi sheet hoàn toàn ẩn, tránh đọc .value trong render
+    const [isMounted, setIsMounted] = useState(false);
     const translateY = useSharedValue(SCREEN_HEIGHT);
     const backdropOpacity = useSharedValue(0);
 
@@ -55,6 +57,7 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
         scrollTo(SCREEN_HEIGHT, 250);
         backdropOpacity.value = withTiming(0, { duration: 250 }, (isFinished) => {
             if (isFinished) {
+                runOnJS(setIsMounted)(false);
                 runOnJS(onClose)();
             }
         });
@@ -62,12 +65,17 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
 
     useEffect(() => {
         if (visible) {
+            setIsMounted(true);
             setMessage('');
             backdropOpacity.value = withTiming(1, { duration: 300 });
             scrollTo(0, 300);
         } else {
             scrollTo(SCREEN_HEIGHT, 250);
-            backdropOpacity.value = withTiming(0, { duration: 250 });
+            backdropOpacity.value = withTiming(0, { duration: 250 }, (isFinished) => {
+                if (isFinished) {
+                    runOnJS(setIsMounted)(false);
+                }
+            });
         }
     }, [visible, backdropOpacity, scrollTo]);
 
@@ -123,6 +131,12 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
                 });
             }
         } catch (error: any) {
+            const status = error?.response?.status;
+            // 401/403 — global interceptor đã xử lý AlertService, chỉ cần đóng sheet
+            if (status === 401 || status === 403) {
+                handleClose();
+                return;
+            }
             const msg = error?.response?.data?.message || 'Đã xảy ra lỗi. Vui lòng thử lại.';
             Toast.show({
                 type: 'error',
@@ -135,7 +149,7 @@ export const MessageBottomSheet: React.FC<MessageBottomSheetProps> = ({
         }
     };
 
-    if (!visible && translateY.value === SCREEN_HEIGHT) return null;
+    if (!visible && !isMounted) return null;
 
     return (
         <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>

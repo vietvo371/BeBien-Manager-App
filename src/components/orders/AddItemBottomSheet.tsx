@@ -274,6 +274,8 @@ export const AddItemBottomSheet: React.FC<AddItemBottomSheetProps> = ({
       });
     },
     onError: (error: any) => {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) { close(() => onClose()); return; }
       const msg = parse422Error(error) || error?.message || 'Không thể thêm món';
       Toast.show({ type: 'error', text1: 'Lỗi', text2: msg });
     },

@@ -20,6 +20,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { useOrderRealtime } from '../../hooks/useOrderRealtime';
+import { useAuth } from '../../contexts/AuthContext';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +121,8 @@ type OrderScreenNav = NativeStackNavigationProp<RootStackParamList>;
 const OrderScreen: React.FC = () => {
   const navigation = useNavigation<OrderScreenNav>();
   useOrderRealtime();
+  const { user } = useAuth();
+  const showStats = (user?.is_nguoi_kiem_duyet ?? 1) === 2;
 
   const [activeTab, setActiveTab] = useState<TabKey>('pending');
 
@@ -237,8 +240,8 @@ const OrderScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* ── Stats row ── */}
-      <Animated.View entering={FadeInDown.delay(60).duration(260)} style={styles.statsRow}>
+      {/* ── Stats row — chỉ role 2 ── */}
+      {showStats && <Animated.View entering={FadeInDown.delay(60).duration(260)} style={styles.statsRow}>
         <View style={styles.statItem}>
           <Text style={[styles.statValue, { color: theme.colors.error }]}>
             {pending.length}
@@ -259,7 +262,7 @@ const OrderScreen: React.FC = () => {
           </Text>
           <Text style={styles.statLabel}>Doanh thu</Text>
         </View>
-      </Animated.View>
+      </Animated.View>}
 
       {/* ── Tab bar ── */}
       <Animated.View entering={FadeInDown.delay(120).duration(260)} style={styles.tabBar}>

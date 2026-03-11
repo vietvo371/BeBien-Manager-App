@@ -1,18 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Platform, AppState, AppStateStatus, Alert } from 'react-native';
-import { 
-  getMessaging, 
-  getToken, 
-  onMessage 
+import { AppState, AppStateStatus } from 'react-native';
+import {
+  getMessaging,
+  onMessage,
 } from '@react-native-firebase/messaging';
 import { getApp } from '@react-native-firebase/app';
-import { displayLocalNotification } from '../config/firebase';
 
 interface OrderNotificationData {
-  type: 'order_created' | 'order_updated' | 'order_cancelled' | 'order_approved';
-  order_id: number;
-  status?: string;
+  type?: string;
+  order_id?: number;
 }
 
 export function useOrderRealtime() {
@@ -20,64 +17,23 @@ export function useOrderRealtime() {
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
-    const logFCMToken = async () => {
-      try {
-        // Get FCM token using modular API
-        // Note: iOS auto-registration is enabled by default in firebase.json
-        const messagingInstance = getMessaging(getApp());
-        const fcmToken = await getToken(messagingInstance);
-        
-        console.log('═══════════════════════════════════════════════');
-        console.log('🎯 FCM TOKEN (Copy để test notification):');
-        console.log(fcmToken);
-        console.log('═══════════════════════════════════════════════');
-      } catch (error) {
-        console.error('❌ Error getting FCM token:', error);
-        Alert.alert(
-          '❌ FCM Error',
-          `Failed to get token: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-    };
-
-    // Setup foreground message listener using modular API
     const messagingInstance = getMessaging(getApp());
-    const unsubscribeForeground = onMessage(messagingInstance, async (remoteMessage) => {
-      console.log('═══════════════════════════════════════════════');
-      console.log('📱 FCM MESSAGE (Foreground):');
-      console.log('Message ID:', remoteMessage.messageId);
-      console.log('Notification:', JSON.stringify(remoteMessage.notification, null, 2));
-      console.log('Data:', JSON.stringify(remoteMessage.data, null, 2));
-      console.log('═══════════════════════════════════════════════');
 
-      // Hiển thị notification banner với Notifee (foreground)
-      if (remoteMessage.notification) {
-        const title = remoteMessage.notification.title || 'Thông báo';
-        const body = remoteMessage.notification.body || 'Có thông báo mới';
-        
-        // Convert data to Record<string, string> for Notifee
-        const notifeeData: Record<string, string> = {};
-        if (remoteMessage.data) {
-          Object.keys(remoteMessage.data).forEach(key => {
-            notifeeData[key] = String(remoteMessage.data![key]);
-          });
-        }
-
-        // Display native notification banner
-        await displayLocalNotification(title, body, notifeeData);
-      }
-
+    // Chỉ xử lý query invalidation — KHÔNG display notification ở đây
+    // Việc display đã do NotificationService.tsx → setupNotificationListeners() lo
+    const unsubscribeForeground = onMessage(messagingInstance, (remoteMessage) => {
       const data = remoteMessage.data as unknown as OrderNotificationData;
-
-      if (data && data.type?.includes('order')) {
-        console.log('🔄 Order notification - invalidating queries...');
-        
+      if (data?.type?.includes('order')) {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
-        
         if (data.order_id) {
           queryClient.invalidateQueries({ queryKey: ['order', data.order_id] });
         }
       }
+      // Invalidate các query liên quan khi nhận bất kỳ FCM nào
+      queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+      queryClient.invalidateQueries({ queryKey: ['cancel-items'] });
+      queryClient.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
+      queryClient.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
     });
 
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
@@ -87,13 +43,12 @@ export function useOrderRealtime() {
       ) {
         console.log('🔄 App to foreground - refreshing orders...');
         queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
       }
       appState.current = nextAppState;
     };
 
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-
-    logFCMToken();
 
     return () => {
       unsubscribeForeground();

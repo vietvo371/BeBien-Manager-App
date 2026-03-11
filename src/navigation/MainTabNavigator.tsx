@@ -6,6 +6,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme, TAB_BAR } from '../theme';
 import { RootStackParamList, MainTabParamList } from './types';
+import { useAuth } from '../contexts/AuthContext';
 
 // Auth screens
 import LoadingScreen from '../screens/auth/LoadingScreen';
@@ -26,6 +27,14 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const MainTabs = () => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const role = user?.is_nguoi_kiem_duyet ?? 1;
+
+  // role 0 = Order + Bếp + Profile
+  // role 1 = Home + Order + Bếp + Profile
+  // role 2 = Home + Order + Bếp + Profile (full)
+  const showHome    = role >= 1;
+  const showKitchen = true;
 
   const tabScreenOptions = {
     headerShown: false,
@@ -65,51 +74,47 @@ const MainTabs = () => {
   return (
     <View style={styles.container}>
       <Tab.Navigator screenOptions={tabScreenOptions}>
-        <Tab.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{
-            title: 'Duyệt huỷ',
-            tabBarIcon: ({ color }) => (
-              <Icon name="clipboard-check-outline" size={TAB_BAR.iconSize} color={color} />
-            ),
-          }}
-        />
+        {showHome && (
+          <Tab.Screen
+            name="Home"
+            component={HomeScreen}
+            options={{
+              title: 'Duyệt huỷ',
+              tabBarIcon: ({ color }) => (
+                <Icon name="clipboard-check-outline" size={TAB_BAR.iconSize} color={color} />
+              ),
+            }}
+          />
+        )}
         <Tab.Screen
           name="Order"
           component={OrderScreen}
           options={{
             title: 'Orders',
             tabBarIcon: ({ color }) => (
-              <Icon
-                name="clipboard-list"
-                size={TAB_BAR.iconSize}
-                color={color}
-              />
+              <Icon name="clipboard-list" size={TAB_BAR.iconSize} color={color} />
             ),
           }}
         />
-        <Tab.Screen
-          name="Kitchen"
-          component={KitchenScreen}
-          options={{
-            title: 'Bếp',
-            tabBarIcon: ({ color }) => (
-              <Icon name="chef-hat" size={TAB_BAR.iconSize} color={color} />
-            ),
-          }}
-        />
+        {showKitchen && (
+          <Tab.Screen
+            name="Kitchen"
+            component={KitchenScreen}
+            options={{
+              title: 'Bếp',
+              tabBarIcon: ({ color }) => (
+                <Icon name="chef-hat" size={TAB_BAR.iconSize} color={color} />
+              ),
+            }}
+          />
+        )}
         <Tab.Screen
           name="Profile"
           component={ProfileScreen}
           options={{
             title: 'Cá nhân',
             tabBarIcon: ({ color }) => (
-              <Icon
-                name="account-circle"
-                size={TAB_BAR.iconSize}
-                color={color}
-              />
+              <Icon name="account-circle" size={TAB_BAR.iconSize} color={color} />
             ),
           }}
         />

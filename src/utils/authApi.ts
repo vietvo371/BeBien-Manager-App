@@ -11,6 +11,14 @@ import { handleApiError } from './errorHandler';
 export interface User {
   ten_nguoi_kiem_duyet: string;
   so_dien_thoai: string;
+  /**
+   * Phân quyền:
+   *  0 = Chỉ xem Order + Bếp
+   *  1 = Kiểm duyệt + Order (không stats) + Bếp
+   *  2 = Full quyền (tất cả + Stats row)
+   */
+  is_nguoi_kiem_duyet: 0 | 1 | 2;
+  type?: string;
 }
 
 export interface SignInResponse {
@@ -23,6 +31,8 @@ export interface LoginResponse {
   token: string;
   ten_nguoi_kiem_duyet: string;
   so_dien_thoai: string;
+  is_nguoi_kiem_duyet: 0 | 1 | 2;
+  type?: string;
 }
 
 export interface ApiResponse<T = any> {
@@ -112,10 +122,12 @@ class AuthApiService {
       const user: User = {
         ten_nguoi_kiem_duyet: data.ten_nguoi_kiem_duyet,
         so_dien_thoai: data.so_dien_thoai,
+        is_nguoi_kiem_duyet: data.is_nguoi_kiem_duyet ?? 1,
+        type: data.type,
       };
       await this.saveToken(data.token);
       await this.saveUser(user);
-      console.log('[signIn] ✅ success:', user.ten_nguoi_kiem_duyet);
+      console.log('[signIn] ✅ success:', user.ten_nguoi_kiem_duyet, 'role:', user.is_nguoi_kiem_duyet);
       return { user, token: data.token };
     }
 
@@ -276,7 +288,29 @@ class AuthApiService {
   async verifyToken(_token: string): Promise<boolean> {
     try {
       const response = await this.api.get('/nguoi-kiem-duyet/auth-check');
-      return response.status === 200 && response.data?.status === true;
+      const { status: httpStatus, data } = response;
+
+      if (httpStatus === 200 && data?.status === true) {
+        // Cập nhật user data mới nhất từ server (kể cả is_nguoi_kiem_duyet)
+        if (data.ten_nguoi_kiem_duyet) {
+          const user: User = {
+            ten_nguoi_kiem_duyet: data.ten_nguoi_kiem_duyet,
+            so_dien_thoai: data.so_dien_thoai,
+            is_nguoi_kiem_duyet: data.is_nguoi_kiem_duyet ?? 1,
+            type: data.type,
+          };
+          await this.saveUser(user);
+          console.log('[verifyToken] ✅ user refreshed, role:', user.is_nguoi_kiem_duyet);
+        }
+        // Cập nhật token nếu server trả về token mới
+        if (data.token) {
+          await this.saveToken(data.token);
+        }
+        return true;
+      }
+
+      console.warn('[verifyToken] ❌ invalid response:', httpStatus, data);
+      return false;
     } catch {
       return false;
     }

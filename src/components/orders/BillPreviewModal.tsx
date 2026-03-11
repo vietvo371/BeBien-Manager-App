@@ -96,7 +96,7 @@ export const BillPreviewModal: React.FC<BillPreviewModalProps> = ({
         tien_giam_gia: tienGiam,
       });
       // 2. Kích hoạt in dò — server tự bắn lệnh in qua WebSocket/Event
-      await orderService.changeInDo({ id: idBan });
+      await orderService.changeInDo({ id_ban: idBan });
     },
     onSuccess: () => {
       Toast.show({ type: 'success', text1: 'In bill dò thành công' });
@@ -106,6 +106,8 @@ export const BillPreviewModal: React.FC<BillPreviewModalProps> = ({
       onClose();
     },
     onError: (error: any) => {
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) { onClose(); return; }
       const msg = parse422Error(error) || error?.message || 'Không thể in bill dò';
       Toast.show({ type: 'error', text1: 'Lỗi', text2: msg });
     },

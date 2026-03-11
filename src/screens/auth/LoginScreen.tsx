@@ -52,9 +52,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
 
     if (!username.trim()) {
       newErrors.username = 'Vui lòng nhập số điện thoại';
-    } else if (!/^(0[3-9]\d{8})$/.test(username.trim())) {
-      newErrors.username = 'Số điện thoại không hợp lệ';
     }
+    //  else if (!/^(0[3-9]\d{8})$/.test(username.trim())) {
+    //   newErrors.username = 'Số điện thoại không hợp lệ';
+    // }
 
     if (!password) {
       newErrors.password = 'Vui lòng nhập mật khẩu';

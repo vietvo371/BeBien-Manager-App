@@ -100,10 +100,10 @@ export const AuthService = {
       }
 
       console.log('🔍 Checking token validity...');
-      const result = await authApi.checkLogin(token);
+      const result = await authApi.verifyToken(token);
       
-      if (result && result.is_student !== undefined) {
-        console.log('✅ Token is valid, is_student:', result.is_student);
+      if (result) {
+        console.log('✅ Token is valid');
         return true;
       }
 
