@@ -10,7 +10,7 @@ export const IS_STAGING = false;
 export const IS_DEVELOPMENT = true;
 
 // API Configuration
-export const API_URL = 'https://bebien.dzfullstackmid.io.vn'; // Development API
+export const API_URL = 'https://bebien.dzfullstack.com'; // Development API
 
 // Firebase Configuration (Development)
 export const FIREBASE = {
