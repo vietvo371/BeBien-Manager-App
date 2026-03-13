@@ -6,7 +6,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
+import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { PendingCancelItem } from '../../types/order.types';
 
 interface ApprovalCardProps {
@@ -30,67 +30,42 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
     return (
         <View style={styles.card}>
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <View style={styles.tableTag}>
-                        <Icon name="table-chair" size={14} color={theme.colors.primary} />
-                        <Text style={styles.tableText}>{item.ten_ban}</Text>
-                    </View>
-                    <Text style={styles.orderCode}>#{item.ma_hoa_don}</Text>
+            {/* Row 1: bàn + mã | trạng thái */}
+            <View style={styles.row}>
+                <View style={styles.tableTag}>
+                    <Icon name="table-chair" size={11} color={theme.colors.primary} />
+                    <Text style={styles.tableText} numberOfLines={1}>{item.ten_ban}</Text>
                 </View>
+                <Text style={styles.orderCode} numberOfLines={1}>#{item.ma_hoa_don}</Text>
+                <View style={styles.flex} />
                 <View style={styles.statusBadge}>
-                    <Icon name="alert-circle" size={16} color={theme.colors.warning} />
-                    <Text style={styles.statusText}>Chờ duyệt hủy</Text>
+                    <Icon name="alert-circle" size={11} color={theme.colors.warning} />
+                    <Text style={styles.statusText} numberOfLines={1}>Chờ duyệt hủy</Text>
                 </View>
             </View>
 
-            <View style={styles.content}>
-                <View style={styles.infoRow}>
-                    <Icon name="food" size={18} color={theme.colors.textSecondary} />
-                    <Text style={styles.itemName}>{item.ten_mat_hang}</Text>
-                </View>
-
-                <View style={styles.infoRow}>
-                    <Icon name="counter" size={18} color={theme.colors.textSecondary} />
-                    <Text style={styles.infoText}>
-                        SL: {item.so_luong} × {formatCurrency(item.don_gia)}
-                    </Text>
-                </View>
-
-                {/* <View style={styles.infoRow}>
-                    <Icon name="account-tie" size={18} color={theme.colors.textSecondary} />
-                    <Text style={styles.infoText}>{item.ten_nhan_vien_order}</Text>
-                </View> */}
+            {/* Row 2: tên món | SL×giá | thành tiền */}
+            <View style={styles.row}>
+                <Text style={styles.itemName} numberOfLines={1}>{item.ten_mat_hang}</Text>
+                <Text style={styles.qtyText} numberOfLines={1}>{item.so_luong} × {formatCurrency(item.don_gia)}</Text>
+                <Text style={styles.totalAmount} numberOfLines={1}>{formatCurrency(item.thanh_tien)}</Text>
             </View>
 
+            {/* Row 3 (optional): ghi chú */}
             {item.ghi_chu ? (
-                <View style={styles.noteContainer}>
-                    <Text style={styles.noteLabel}>Ghi chú:</Text>
-                    <Text style={styles.noteText}>{item.ghi_chu}</Text>
-                </View>
+                <Text style={styles.note} numberOfLines={1}>
+                    <Text style={styles.noteLabel}>Ghi chú: </Text>{item.ghi_chu}
+                </Text>
             ) : null}
 
-            <View style={styles.footer}>
-                <Text style={styles.totalLabel}>Thành tiền:</Text>
-                <Text style={styles.totalAmount}>{formatCurrency(item.thanh_tien)}</Text>
-            </View>
-
-            <View style={styles.actionContainer}>
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.rejectButton]}
-                    onPress={onReject}
-                    activeOpacity={0.8}
-                >
-                    <Icon name="close" size={20} color={theme.colors.error} />
+            {/* Row 4: action buttons */}
+            <View style={styles.actions}>
+                <TouchableOpacity style={[styles.btn, styles.rejectBtn]} onPress={onReject} activeOpacity={0.8}>
+                    <Icon name="close" size={13} color={theme.colors.error} />
                     <Text style={styles.rejectText}>Từ chối</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.approveButton]}
-                    onPress={onApprove}
-                    activeOpacity={0.8}
-                >
-                    <Icon name="check" size={20} color={theme.colors.white} />
+                <TouchableOpacity style={[styles.btn, styles.approveBtn]} onPress={onApprove} activeOpacity={0.8}>
+                    <Icon name="check" size={13} color={theme.colors.white} />
                     <Text style={styles.approveText}>Duyệt hủy</Text>
                 </TouchableOpacity>
             </View>
@@ -101,143 +76,121 @@ export const ApprovalCard: React.FC<ApprovalCardProps> = ({
 const styles = StyleSheet.create({
     card: {
         backgroundColor: theme.colors.card,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.lg,
+        borderRadius: BORDER_RADIUS.sm,
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.sm,
         marginHorizontal: SPACING.lg,
-        marginVertical: SPACING.sm,
+        marginVertical: 3,
+        gap: SPACING.xs,
         ...theme.shadows.sm,
     },
-    header: {
+    row: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: SPACING.md,
+        gap: SPACING.xs,
     },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    flex: {
         flex: 1,
-        gap: SPACING.sm,
-    },
-    orderCode: {
-        fontSize: FONT_SIZE.xs,
-        fontWeight: '500',
-        color: theme.colors.textSecondary,
     },
     tableTag: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: theme.colors.primaryLight,
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: SPACING.xs,
-        borderRadius: BORDER_RADIUS.sm,
-        gap: 4,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: BORDER_RADIUS.xs,
+        gap: 2,
+        maxWidth: '40%',        // không vượt 40% chiều rộng card
+        flexShrink: 1,
     },
     tableText: {
-        fontSize: FONT_SIZE.md,
+        fontSize: FONT_SIZE.xs,
         fontWeight: '700',
         color: theme.colors.primary,
+        flexShrink: 1,
+    },
+    orderCode: {
+        fontSize: FONT_SIZE['2xs'],
+        fontWeight: '500',
+        color: theme.colors.textSecondary,
+        flexShrink: 1,
+        maxWidth: '25%',
     },
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.colors.warningLight + '30',
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: SPACING.xs,
-        borderRadius: BORDER_RADIUS.md,
-        gap: 4,
+        backgroundColor: theme.colors.warningLight + '40',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: BORDER_RADIUS.xs,
+        gap: 2,
+        flexShrink: 0,          // badge không bao giờ bị nén
     },
     statusText: {
-        fontSize: FONT_SIZE.xs,
+        fontSize: FONT_SIZE['2xs'],
         fontWeight: '600',
         color: theme.colors.warning,
     },
-    content: {
-        gap: SPACING.sm,
-        marginBottom: SPACING.md,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.sm,
-    },
     itemName: {
-        fontSize: FONT_SIZE.md,
+        fontSize: FONT_SIZE.xs,
         fontWeight: '600',
         color: theme.colors.text,
-        flex: 1,
+        flex: 1,                // chiếm không gian còn lại
+        minWidth: 0,            // cho phép shrink xuống 0 nếu cần
     },
-    infoText: {
-        fontSize: FONT_SIZE.sm,
+    qtyText: {
+        fontSize: FONT_SIZE['2xs'],
         color: theme.colors.textSecondary,
-        flex: 1,
+        flexShrink: 1,          // nhường chỗ cho itemName nếu quá dài
+        maxWidth: '40%',
     },
-    noteContainer: {
-        backgroundColor: theme.colors.background,
-        padding: SPACING.md,
-        borderRadius: BORDER_RADIUS.md,
-        marginBottom: SPACING.md,
-        borderLeftWidth: 3,
+    totalAmount: {
+        fontSize: FONT_SIZE.sm,
+        fontWeight: '700',
+        color: theme.colors.primary,
+        flexShrink: 0,          // tiền không bao giờ bị cắt
+    },
+    note: {
+        fontSize: FONT_SIZE['2xs'],
+        color: theme.colors.textSecondary,
+        fontStyle: 'italic',
+        paddingLeft: SPACING.xs,
+        borderLeftWidth: 2,
         borderLeftColor: theme.colors.warning,
     },
     noteLabel: {
-        fontSize: FONT_SIZE.xs,
+        fontWeight: '600',
+        fontStyle: 'normal',
         color: theme.colors.textSecondary,
-        marginBottom: 2,
-        fontWeight: '500',
     },
-    noteText: {
-        fontSize: FONT_SIZE.sm,
-        color: theme.colors.text,
-        fontStyle: 'italic',
-    },
-    footer: {
+    actions: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: SPACING.md,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
-        marginBottom: SPACING.md,
+        gap: SPACING.xs,
+        marginTop: 2,
     },
-    totalLabel: {
-        fontSize: FONT_SIZE.md,
-        color: theme.colors.textSecondary,
-        fontWeight: '500',
-    },
-    totalAmount: {
-        fontSize: FONT_SIZE.xl,
-        fontWeight: '700',
-        color: theme.colors.primary,
-    },
-    actionContainer: {
-        flexDirection: 'row',
-        gap: SPACING.md,
-    },
-    actionButton: {
+    btn: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: BUTTON_HEIGHT.md,
-        borderRadius: BORDER_RADIUS.md,
-        gap: SPACING.sm,
+        height: 28,
+        borderRadius: BORDER_RADIUS.xs,
+        gap: 3,
     },
-    rejectButton: {
-        backgroundColor: theme.colors.card,
+    rejectBtn: {
         borderWidth: 1,
         borderColor: theme.colors.error,
     },
-    approveButton: {
+    approveBtn: {
         backgroundColor: theme.colors.success,
     },
     rejectText: {
-        fontSize: FONT_SIZE.md,
+        fontSize: FONT_SIZE['2xs'],
         fontWeight: '600',
         color: theme.colors.error,
     },
     approveText: {
-        fontSize: FONT_SIZE.md,
+        fontSize: FONT_SIZE['2xs'],
         fontWeight: '600',
         color: theme.colors.white,
     },

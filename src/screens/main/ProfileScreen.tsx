@@ -14,6 +14,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { theme, SPACING, FONT_SIZE, BORDER_RADIUS, BUTTON_HEIGHT } from '../../theme';
 import { useAuth } from '../../contexts/AuthContext';
 import CustomAlert, { AlertButton } from '../../component/CustomAlert';
+import env from '../../config/env';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,7 +94,7 @@ const ProfileScreen: React.FC = () => {
 
     const appRows: { icon: string; label: string; value: string }[] = [
         { icon: 'information-outline', label: 'Phiên bản', value: '1.0.0' },
-        { icon: 'server-network', label: 'Máy chủ', value: 'bebien.dzfullstackmid.io.vn' },
+        { icon: 'server-network', label: 'Máy chủ', value: env.API_URL },
     ];
 
     // ── Render ────────────────────────────────────────────────────────────────
