@@ -7,10 +7,12 @@ import {
 } from '@react-native-firebase/messaging';
 import { getApp } from '@react-native-firebase/app';
 
+const BACKGROUND_STALE_THRESHOLD = 2 * 60 * 1000; // 2 phút
 
 export function useOrderRealtime() {
   const queryClient = useQueryClient();
   const appState = useRef(AppState.currentState);
+  const backgroundedAt = useRef<number>(0);
 
   useEffect(() => {
     const messagingInstance = getMessaging(getApp());
@@ -38,14 +40,21 @@ export function useOrderRealtime() {
     });
 
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        console.log('🔄 App to foreground - refreshing orders...');
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+      const current = appState.current;
+
+      if (current.match(/inactive|background/) && nextAppState === 'active') {
+        // Chỉ invalidate nếu app đã background đủ lâu để data có thể thay đổi
+        const timeAway = Date.now() - backgroundedAt.current;
+        if (timeAway > BACKGROUND_STALE_THRESHOLD) {
+          queryClient.invalidateQueries({ queryKey: ['hoaDonOpen'] });
+          queryClient.invalidateQueries({ queryKey: ['cancel-items'] });
+          queryClient.invalidateQueries({ queryKey: ['bepDonMonTheoBan'] });
+          queryClient.invalidateQueries({ queryKey: ['bepXongMonTheoNhom'] });
+        }
+      } else if (nextAppState.match(/inactive|background/)) {
+        backgroundedAt.current = Date.now();
       }
+
       appState.current = nextAppState;
     };
 

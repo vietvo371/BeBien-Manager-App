@@ -127,13 +127,13 @@ const OrderScreen: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabKey>('pending');
 
-  const { data, isLoading, isError, refetch, isRefetching } = useQuery({
+  const { data, isLoading, isError, refetch, isRefetching, dataUpdatedAt } = useQuery({
     queryKey: ['hoaDonOpen'],
     queryFn: () => orderService.getHoaDonOpen(),
     staleTime: 30_000,
   });
 
-  useRefreshOnFocus(refetch);
+  useRefreshOnFocus(refetch, dataUpdatedAt, 30_000);
 
   const { pending, done } = useMemo(() => {
     const list = data?.data ?? [];

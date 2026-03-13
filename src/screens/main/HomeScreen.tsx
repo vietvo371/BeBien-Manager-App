@@ -77,11 +77,14 @@ const HomeScreen: React.FC = () => {
 
     const activeQuery = activeTab === 'pending' ? pendingQuery : rejectedQuery;
 
-    // Sau 5s focus → refresh cả 2 query
-    useRefreshOnFocus(useCallback(() => {
-        pendingQuery.refetch();
-        rejectedQuery.refetch();
-    }, [pendingQuery, rejectedQuery]));
+    useRefreshOnFocus(
+        useCallback(() => {
+            pendingQuery.refetch();
+            rejectedQuery.refetch();
+        }, [pendingQuery, rejectedQuery]),
+        Math.min(pendingQuery.dataUpdatedAt, rejectedQuery.dataUpdatedAt),
+        30000,
+    );
     const activeItems = activeTab === 'pending' ? pendingItems : rejectedItems;
 
     // ── Mutation ─────────────────────────────────────────────────────────────

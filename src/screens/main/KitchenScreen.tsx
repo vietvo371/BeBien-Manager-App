@@ -17,6 +17,7 @@ import { theme, SPACING, FONT_SIZE, BORDER_RADIUS } from '../../theme';
 import { orderService } from '../../services/orderService';
 import { BepDonMonTheoBan, BepXongMonTheoNhom } from '../../types/order.types';
 import { useRefreshOnFocus } from '../../hooks/useRefreshOnFocus';
+import { useOrderRealtime } from '../../hooks/useOrderRealtime';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -210,6 +211,8 @@ const EmptyView = ({ message }: { message: string }) => (
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 const KitchenScreen: React.FC = () => {
+  useOrderRealtime();
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('theo-ban');
 
   const theoBanQuery = useQuery({
@@ -249,11 +252,14 @@ const KitchenScreen: React.FC = () => {
     theoNhomQuery.refetch();
   }, [theoBanQuery, theoNhomQuery]);
 
-  // Sau 5s focus → refresh cả 2 tab
-  useRefreshOnFocus(useCallback(() => {
-    theoBanQuery.refetch();
-    theoNhomQuery.refetch();
-  }, [theoBanQuery, theoNhomQuery]));
+  useRefreshOnFocus(
+    useCallback(() => {
+      theoBanQuery.refetch();
+      theoNhomQuery.refetch();
+    }, [theoBanQuery, theoNhomQuery]),
+    Math.min(theoBanQuery.dataUpdatedAt, theoNhomQuery.dataUpdatedAt),
+    15_000,
+  );
 
   // ─── Render helpers ────────────────────────────────────────────────────────
 
