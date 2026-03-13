@@ -40,13 +40,13 @@ export const ResolvedCard: React.FC<ResolvedCardProps> = ({ item }) => {
             {/* Row 1: bàn + mã | trạng thái */}
             <View style={styles.row}>
                 <View style={styles.tableTag}>
-                    <Icon name="table-chair" size={11} color={theme.colors.primary} />
+                    <Icon name="table-chair" size={14} color={theme.colors.primary} />
                     <Text style={styles.tableText} numberOfLines={1}>{item.ten_ban}</Text>
                 </View>
                 <Text style={styles.orderCode} numberOfLines={1}>#{item.ma_hoa_don}</Text>
                 <View style={styles.flex} />
                 <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
-                    <Icon name={statusConfig.iconName} size={11} color={statusConfig.color} />
+                    <Icon name={statusConfig.iconName} size={14} color={statusConfig.color} />
                     <Text style={[styles.statusText, { color: statusConfig.color }]} numberOfLines={1}>
                         {statusConfig.label}
                     </Text>
@@ -75,19 +75,19 @@ export const ResolvedCard: React.FC<ResolvedCardProps> = ({ item }) => {
 const styles = StyleSheet.create({
     card: {
         backgroundColor: theme.colors.card,
-        borderRadius: BORDER_RADIUS.sm,
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: SPACING.sm,
+        borderRadius: BORDER_RADIUS.md,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.md,
         marginHorizontal: SPACING.lg,
-        marginVertical: 3,
+        marginVertical: 5,
         borderLeftWidth: 3,
-        gap: SPACING.xs,
+        gap: SPACING.sm,
         ...theme.shadows.sm,
     },
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: SPACING.xs,
+        gap: SPACING.sm,
     },
     flex: {
         flex: 1,
@@ -96,21 +96,21 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: theme.colors.primaryLight,
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: BORDER_RADIUS.xs,
-        gap: 2,
-        maxWidth: '40%',        // không vượt 40% chiều rộng card
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: BORDER_RADIUS.sm,
+        gap: 3,
+        maxWidth: '40%',
         flexShrink: 1,
     },
     tableText: {
-        fontSize: FONT_SIZE.xs,
+        fontSize: FONT_SIZE.sm,
         fontWeight: '700',
         color: theme.colors.primary,
         flexShrink: 1,
     },
     orderCode: {
-        fontSize: FONT_SIZE['2xs'],
+        fontSize: FONT_SIZE.xs,
         fontWeight: '500',
         color: theme.colors.textSecondary,
         flexShrink: 1,
@@ -119,39 +119,39 @@ const styles = StyleSheet.create({
     statusBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: BORDER_RADIUS.xs,
-        gap: 2,
-        flexShrink: 0,          // badge không bao giờ bị nén
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: BORDER_RADIUS.sm,
+        gap: 3,
+        flexShrink: 0,
     },
     statusText: {
-        fontSize: FONT_SIZE['2xs'],
+        fontSize: FONT_SIZE.xs,
         fontWeight: '700',
     },
     itemName: {
-        fontSize: FONT_SIZE.xs,
+        fontSize: FONT_SIZE.sm,
         fontWeight: '600',
         color: theme.colors.text,
-        flex: 1,                // chiếm không gian còn lại
-        minWidth: 0,            // cho phép shrink xuống 0 nếu cần
+        flex: 1,
+        minWidth: 0,
     },
     qtyText: {
-        fontSize: FONT_SIZE['2xs'],
+        fontSize: FONT_SIZE.xs,
         color: theme.colors.textSecondary,
-        flexShrink: 1,          // nhường chỗ cho itemName nếu quá dài
+        flexShrink: 1,
         maxWidth: '40%',
     },
     totalAmount: {
-        fontSize: FONT_SIZE.sm,
+        fontSize: FONT_SIZE.md,
         fontWeight: '700',
-        flexShrink: 0,          // tiền không bao giờ bị cắt
+        flexShrink: 0,
     },
     note: {
-        fontSize: FONT_SIZE['2xs'],
+        fontSize: FONT_SIZE.xs,
         color: theme.colors.textSecondary,
         fontStyle: 'italic',
-        paddingLeft: SPACING.xs,
+        paddingLeft: SPACING.sm,
         borderLeftWidth: 2,
         borderLeftColor: theme.colors.warning,
     },
